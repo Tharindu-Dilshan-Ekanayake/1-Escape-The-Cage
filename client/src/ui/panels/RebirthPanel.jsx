@@ -39,7 +39,7 @@ function StatCard({ icon, text, after }) {
 /** The best Train Zone `rebirths` rebirths open (the ones bought with Wins aside). */
 const bestZone = (rebirths) => TRAIN_ZONES.filter((z) => !z.product && z.rebirths <= rebirths).at(-1)
 
-/** One rebirth's numbers: its max level, walking speed, Muscle multiplier and best gym. */
+/** One rebirth's numbers: its max level, walking speed, Strength multiplier and best gym. */
 function Column({ rebirths, after }) {
   return (
     <div className="flex flex-col items-center" style={{ gap: u(10) }}>
@@ -49,7 +49,7 @@ function Column({ rebirths, after }) {
       <div className="grid w-full grid-cols-2" style={{ gap: u(10) }}>
         <StatCard icon="starGold" text={`Level ${levelCap(rebirths)}`} after={after} />
         <StatCard icon="fastForward" text={`${walkSpeed(levelCap(rebirths), rebirths).toFixed(1)} Speed`} after={after} />
-        <StatCard icon="muscle" text={`${formatMultiplier(rebirthMultiplier(rebirths))} Muscle`} after={after} />
+        <StatCard icon="muscle" text={`${formatMultiplier(rebirthMultiplier(rebirths))} Strength`} after={after} />
         <StatCard icon="dumbbell" text={`${bestZone(rebirths).mult}X Gym`} after={after} />
       </div>
     </div>
@@ -58,8 +58,8 @@ function Column({ rebirths, after }) {
 
 /**
  * Rebirth, as in the reference: this rebirth's numbers against the next one's (max
- * level, speed, Muscle multiplier), your progress to max level, and the Rebirth button
- * once you're there - or Skip, for Wins, before then. Rebirth resets your Muscle.
+ * level, speed, Strength multiplier), your progress to max level, and the Rebirth button
+ * once you're there - or Skip, for Wins, before then. Rebirth resets your Strength.
  */
 export function RebirthPanel() {
   const rebirths = useGame((s) => s.profile.rebirths)
@@ -124,7 +124,7 @@ export function RebirthPanel() {
 
       <p className="m-0 text-center" style={{ fontSize: u(46), marginTop: u(16) }}>
         <StrokeText stroke={u(9)} gradient={GRADIENTS.priceShort}>
-          Rebirth resets your Muscle!
+          Rebirth resets your Strength (your arms, pets and Wins stay)!
         </StrokeText>
       </p>
 

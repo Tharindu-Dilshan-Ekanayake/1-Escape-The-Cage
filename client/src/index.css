@@ -10,6 +10,15 @@
    * and floored so touch targets stay usable on phones.
    */
   --px: clamp(0.42px, min(100vw / 1920, 100vh / 1080), 1.4px);
+  /* Where the HUD's top row starts: clear of a phone's notch. */
+  --hud-top: calc(env(safe-area-inset-top, 0px) + 10px);
+}
+
+/* Upright phones: the reference layout turned on its side (1000 x 1800), so the HUD fits the narrow screen. */
+@media (orientation: portrait) {
+  :root {
+    --px: clamp(0.3px, min(100vw / 1000, 100vh / 1800), 1.4px);
+  }
 }
 
 html,
@@ -266,19 +275,6 @@ canvas {
   -webkit-mask-image: radial-gradient(circle, #000 25%, transparent 70%);
 }
 
-/* Holding E at a boulder: the ring round the key fills, then the boulder's yours. */
-@keyframes pp-hold {
-  from {
-    stroke-dashoffset: 100;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-.pp-hold {
-  animation: pp-hold var(--hold) linear forwards;
-}
-
 /* The Wins counter jumps as each trophy flies into it. */
 @keyframes pp-bump {
   0% {
@@ -319,7 +315,7 @@ canvas {
   animation: pp-spin 9s linear infinite;
 }
 
-/* Up the track: the strain bar shivers as the boulder gets too heavy. */
+/* A shiver: something straining. */
 @keyframes pp-shake {
   0%,
   100% {
@@ -359,25 +355,6 @@ canvas {
 }
 .pp-banner {
   animation: pp-banner 2.6s ease-out forwards;
-}
-
-/* The death card: pops in like a banner, then stays until Respawn is pressed. */
-@keyframes pp-death {
-  0% {
-    transform: translate(-50%, -50%) scale(0.3) rotate(-6deg);
-    opacity: 0;
-  }
-  55% {
-    transform: translate(-50%, -50%) scale(1.15) rotate(2deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(1) rotate(0);
-    opacity: 1;
-  }
-}
-.pp-death {
-  animation: pp-death 0.55s ease-out both;
 }
 
 /* Things only shown where the screen is tall enough for them (not landscape phones). */

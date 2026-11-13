@@ -10,22 +10,29 @@ import {
 
 import {
   AURA_STAND,
+  AVENUES,
   EGG_STANDS,
   FREE_REWARD,
+  HUB,
   LEADERBOARDS,
+  GAUNTLET,
   PORTALS,
   POTION_STAND,
   PLAZA,
-  PUSH_ZONE,
   SHOP,
-  TRACK_START_Z,
-  WATERFALL,
+  SPHINX_STAND,
   ZONE_COUNT,
   zoneDeckRect,
 } from '@shared/world'
 
 import { PALETTE } from '../sceneStyle'
-import { DIRT_PATCHES, LAWNS } from './lawns'
+
+/**
+ * Each avenue's runner, by the area it leads to: the same signal colours in every world,
+ * so you learn them - red to the cages, orange to training, blue to the bodies, gold to
+ * the pets, violet to World 2.
+ */
+export const RUNNERS = { cages: '#e8473b', training: '#ff8a1f', bodies: '#2f9bff', pets: '#ffc61a', world2: '#a35cff' }
 
 /**
  * The plaza floor: one big plane whose colours come from a tiny "ground map" texture
@@ -38,8 +45,8 @@ const MAP = { minX: PLAZA.minX - 10, maxX: PLAZA.maxX + 10, minZ: PLAZA.minZ, ma
 const MAP_W = MAP.maxX - MAP.minX
 const MAP_H = MAP.maxZ - MAP.minZ
 
-/** Where the ground plane ends to the north: the track's own floor takes over there. */
-export const GROUND_NORTH_EDGE = TRACK_START_Z
+/** Where the ground plane ends to the north: the gauntlet's own floors take over there. */
+export const GROUND_NORTH_EDGE = GAUNTLET.startZ
 
 function painter(ctx) {
   const rect = (r, color) => {
@@ -65,7 +72,16 @@ function painter(ctx) {
       }
     }
   }
-  return { rect, bordered, disc }
+  /** A rect of bricks: rows a texel deep, each brick two long, alternate rows offset, in two shades. */
+  const bricks = (r, a, b) => {
+    for (let z = Math.round(r.minZ); z < Math.round(r.maxZ); z += 1) {
+      for (let x = Math.round(r.minX); x < Math.round(r.maxX); x += 1) {
+        ctx.fillStyle = (Math.floor((x + (z & 1)) / 2) + z) & 1 ? a : b
+        ctx.fillRect(x - MAP.minX, z - MAP.minZ, 1, 1)
+      }
+    }
+  }
+  return { rect, bordered, disc, bricks }
 }
 
 export function createGroundMap(maxTexture) {
@@ -73,37 +89,48 @@ export function createGroundMap(maxTexture) {
   canvas.width = MAP_W
   canvas.height = MAP_H
   const ctx = canvas.getContext('2d')
-  const { rect, bordered, disc } = painter(ctx)
+  const { rect, bordered, disc, bricks } = painter(ctx)
 
   rect(MAP, PALETTE.plaza)
 
-  // The lawns and their dirt patches, a darker edge where each meets its kerb.
-  for (const lawn of LAWNS) bordered(lawn, PALETTE.lawn, PALETTE.curbEdge)
-  for (const patch of DIRT_PATCHES) rect(patch, PALETTE.dirt)
-
-  // A paved apron under the Train Zones, and one at the foot of the track.
+  // Each area's paved ground: the Train Zones' apron, the way into the cages, the pets'
+  // and leaderboards' plaza, the shop yard, and a paved circle round each stand.
   const first = zoneDeckRect(0)
   const last = zoneDeckRect(ZONE_COUNT - 1)
   bordered({ minX: first.minX - 2, maxX: first.maxX + 3, minZ: last.minZ - 2, maxZ: first.maxZ + 2 }, PALETTE.apron, PALETTE.apronEdge)
-  bordered({ minX: PUSH_ZONE.minX - 3, maxX: PUSH_ZONE.maxX + 3, minZ: TRACK_START_Z, maxZ: PUSH_ZONE.maxZ + 4 }, PALETTE.apron, PALETTE.apronEdge)
-
-  // Egg plaza and the shop yard.
-  const eggsZ = EGG_STANDS[0].z
-  bordered({ minX: -18, maxX: 27, minZ: eggsZ - 4, maxZ: LEADERBOARDS[0].z - 1 }, PALETTE.apron, PALETTE.apronEdge)
+  bordered({ minX: -GAUNTLET.halfWidth - 3, maxX: GAUNTLET.halfWidth + 3, minZ: GAUNTLET.startZ, maxZ: GAUNTLET.startZ + 8 }, PALETTE.apron, PALETTE.apronEdge)
+  bordered({ minX: EGG_STANDS[0].x - 6, maxX: SPHINX_STAND.x + 6, minZ: EGG_STANDS[0].z - 6, maxZ: LEADERBOARDS[0].z + 3 }, PALETTE.apron, PALETTE.apronEdge)
   rect({ minX: SHOP.minX, maxX: SHOP.maxX, minZ: SHOP.minZ, maxZ: SHOP.maxZ }, PALETTE.shopFloor)
-
   for (const p of PORTALS) {
-    disc(p.x, p.z, 6, PALETTE.apronEdge)
-    disc(p.x, p.z, 5, PALETTE.apron)
+    disc(p.x, p.z, 7, RUNNERS.world2)
+    disc(p.x, p.z, 6, PALETTE.apron)
   }
   for (const stand of [AURA_STAND, POTION_STAND]) {
-    disc(stand.x, stand.z, 5, PALETTE.apronEdge)
-    disc(stand.x, stand.z, 4, PALETTE.apron)
+    disc(stand.x, stand.z, 6, PALETTE.apronEdge)
+    disc(stand.x, stand.z, 5, PALETTE.apron)
   }
   disc(FREE_REWARD.x, FREE_REWARD.z, 4, PALETTE.apronEdge)
 
-  // Waterfall pool at the foot of the north cliff.
-  rect({ minX: WATERFALL.x - 6, maxX: WATERFALL.x + 6, minZ: WATERFALL.z, maxZ: WATERFALL.z + 5 }, PALETTE.water)
+  // The avenues: brick, kerbed, each with its runner up the middle from the hub out.
+  for (const a of AVENUES) bordered({ minX: a.minX - 1, maxX: a.maxX + 1, minZ: a.minZ - 1, maxZ: a.maxZ + 1 }, PALETTE.pathEdge, PALETTE.pathEdge)
+  for (const a of AVENUES) bricks(a, PALETTE.path, PALETTE.pathAlt)
+  for (const a of AVENUES) {
+    const color = RUNNERS[a.id]
+    if (a.maxX - a.minX >= a.maxZ - a.minZ) {
+      const z = Math.round((a.minZ + a.maxZ) / 2)
+      rect({ minX: a.minX, maxX: a.maxX, minZ: z - 2, maxZ: z + 2 }, PALETTE.runnerEdge)
+      rect({ minX: a.minX, maxX: a.maxX, minZ: z - 1, maxZ: z + 1 }, color)
+    } else {
+      const x = Math.round((a.minX + a.maxX) / 2)
+      rect({ minX: x - 2, maxX: x + 2, minZ: a.minZ, maxZ: a.maxZ }, PALETTE.runnerEdge)
+      rect({ minX: x - 1, maxX: x + 1, minZ: a.minZ, maxZ: a.maxZ }, color)
+    }
+  }
+  // The hub round spawn, paved in rings, where the runners start.
+  disc(HUB.x, HUB.z, HUB.radius + 1, PALETTE.pathEdge)
+  for (let r = HUB.radius; r > 0; r -= 1) disc(HUB.x, HUB.z, r, (HUB.radius - r) % 3 === 2 ? PALETTE.pathAlt : PALETTE.path)
+  disc(HUB.x, HUB.z, 3, PALETTE.runnerEdge)
+  disc(HUB.x, HUB.z, 2, RUNNERS.cages)
 
   const texture = new CanvasTexture(canvas)
   texture.colorSpace = SRGBColorSpace

@@ -17,9 +17,8 @@ import RemoteAvatars from './remote/RemoteAvatars'
 import RemotePlayers from './remote/RemotePlayers'
 import Particles from './fx/Particles'
 import LiftInput from './LiftInput'
-import Boulders from './push/Boulders'
 import ChatBubbles from './ChatBubbles'
-import DumbbellShop from './world/DumbbellShop'
+import BodyShop from './world/BodyShop'
 import EggDisplays from './world/EggDisplays'
 import Leaderboards from './world/Leaderboards'
 import Portal from './world/Portal'
@@ -39,9 +38,9 @@ const DevPerf = import.meta.env.DEV
   : null
 const showDevPerf = import.meta.env.DEV && new URLSearchParams(window.location.search).has('perf')
 
-// The track up the mountain is its own chunk, fetched once the lobby is on screen so it
+// The gauntlet of cages is its own chunk, fetched once the lobby is on screen so it
 // never delays time-to-playable.
-const Push = lazy(() => import('./push/Push'))
+const Cages = lazy(() => import('./cages/Cages'))
 
 /** The longest the loading screen waits for your avatar before the game opens anyway. */
 const AVATAR_WAIT_MS = 10000
@@ -50,8 +49,8 @@ const AVATAR_WAIT_MS = 10000
  * The scene's start-up, in a component of its own so each step re-renders only this,
  * not the whole scene (seconds of work on a slow phone): every shader compiled
  * (ShaderWarmup - last in the scene, so everything's in it), then the first real frame
- * drawn (`onSceneIn`), then the track up the mountain, fetched only now so it never
- * delays time-to-playable.
+ * drawn (`onSceneIn`), then the gauntlet of cages, fetched only now so it never delays
+ * time-to-playable.
  */
 function StartUp({ onSceneIn }) {
   const world = useGame((s) => s.profile.world)
@@ -63,8 +62,8 @@ function StartUp({ onSceneIn }) {
     <>
       {warmedUp && firstFrame && (
         <Suspense fallback={null}>
-          {/* Built afresh for each world's track (the ticker switches it first). */}
-          <Push key={world} />
+          {/* Built afresh for each world's cages (the ticker switches them first). */}
+          <Cages key={world} />
         </Suspense>
       )}
       <ShaderWarmup onDone={handleWarmedUp} />
@@ -233,7 +232,7 @@ export function GameScene({ onReady }) {
         <Lighting />
         <World />
         <WorldLabels />
-        <DumbbellShop />
+        <BodyShop />
         <EggDisplays />
         <Portal />
         <Leaderboards />
@@ -247,7 +246,6 @@ export function GameScene({ onReady }) {
         <Player onAvatarReady={handleAvatarReady} />
         <ChatBubbles />
         <PauseForAds />
-        <Boulders />
         <Auras />
         <BlobShadows />
         <GainFX />

@@ -63,7 +63,7 @@ export function PetsPanel() {
         </span>
         <span style={{ fontSize: u(36) }}>
           <StrokeText stroke={u(7)} gradient={GRADIENTS.gold}>
-            Pet Muscle {formatMultiplier(petMultiplier(profile))}
+            Pet Strength {formatMultiplier(petMultiplier(profile))}
           </StrokeText>
         </span>
         <span style={{ fontSize: u(30) }}>
@@ -108,7 +108,7 @@ export function PetsPanel() {
             </span>
             <span style={{ fontSize: u(30) }}>
               <StrokeText stroke={u(6)} fill={RARITIES[selectedInfo.rarity].color}>
-                {RARITIES[selectedInfo.rarity].name} · {formatMultiplier(selectedInfo.mult)} Muscle
+                {RARITIES[selectedInfo.rarity].name} · {formatMultiplier(selectedInfo.mult)} Strength
               </StrokeText>
             </span>
           </div>

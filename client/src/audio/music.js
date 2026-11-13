@@ -114,7 +114,7 @@ export function createMusic(ctx, destination, noiseBuffer) {
       // Fade in.
       applyLevel(1.2)
     },
-    /** Quieter while something else should be heard (a boulder rolling). */
+    /** Quieter while something else should be heard. */
     duck(on) {
       level.ducked = on ? 0.45 : 1
       applyLevel(0.4)

@@ -21,15 +21,15 @@ import { normalizeProfile } from '../../shared/logic.js'
  * the one they're playing in now.
  */
 
-const DB_PATH = process.env.DB_PATH || fileURLToPath(new URL('../data/boulder.db', import.meta.url))
+const DB_PATH = process.env.DB_PATH || fileURLToPath(new URL('../data/cages.db', import.meta.url))
 
-const BOARDS = { rebirths: 'rebirths', muscle: 'bestMuscle', height: 'bestMeter' }
+const BOARDS = { rebirths: 'rebirths', strength: 'bestMuscle', cages: 'bestCage' }
 
 const leaderboardFields = (profile) => ({
   name: profile.name,
   rebirths: profile.rebirths,
   bestMuscle: profile.stats.bestMuscle,
-  bestMeter: profile.stats.bestMeter,
+  bestCage: profile.stats.bestCage ?? 0,
   updatedAt: profile.lastSeen,
 })
 
@@ -118,15 +118,15 @@ async function openSqlite(path) {
       data TEXT NOT NULL,
       rebirths INTEGER NOT NULL DEFAULT 0,
       best_muscle REAL NOT NULL DEFAULT 0,
-      best_meter REAL NOT NULL DEFAULT 0,
+      best_cage REAL NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS profiles_rebirths ON profiles (rebirths DESC);
     CREATE INDEX IF NOT EXISTS profiles_muscle ON profiles (best_muscle DESC);
-    CREATE INDEX IF NOT EXISTS profiles_meter ON profiles (best_meter DESC);
+    CREATE INDEX IF NOT EXISTS profiles_cage ON profiles (best_cage DESC);
     CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `)
-  const columns = { rebirths: 'rebirths', muscle: 'best_muscle', height: 'best_meter' }
+  const columns = { rebirths: 'rebirths', strength: 'best_muscle', cages: 'best_cage' }
   const readStock = () => {
     const row = db.prepare("SELECT value FROM kv WHERE key = 'sphinxStock'").get()
     return row ? Number(row.value) : SPHINX_STOCK_DEFAULT
@@ -140,13 +140,13 @@ async function openSqlite(path) {
     async save(profile) {
       const f = leaderboardFields(profile)
       db.prepare(
-        `INSERT INTO profiles (id, name, data, rebirths, best_muscle, best_meter, updated_at)
+        `INSERT INTO profiles (id, name, data, rebirths, best_muscle, best_cage, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name, data = excluded.data, rebirths = excluded.rebirths,
-           best_muscle = excluded.best_muscle, best_meter = excluded.best_meter,
+           best_muscle = excluded.best_muscle, best_cage = excluded.best_cage,
            updated_at = excluded.updated_at`,
-      ).run(profile.id, f.name, JSON.stringify(profile), f.rebirths, f.bestMuscle, f.bestMeter, f.updatedAt)
+      ).run(profile.id, f.name, JSON.stringify(profile), f.rebirths, f.bestMuscle, f.bestCage, f.updatedAt)
       return true
     },
     async top(limit) {
@@ -167,8 +167,8 @@ async function openSqlite(path) {
         db.prepare('INSERT INTO kv (key, value) VALUES (?, ?)').run(`carried:${guestId}`, userId)
         const f = leaderboardFields(JSON.parse(row.data))
         db.prepare(
-          `INSERT INTO profiles (id, name, data, rebirths, best_muscle, best_meter, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        ).run(userId, f.name ?? '', row.data, f.rebirths ?? 0, f.bestMuscle ?? 0, f.bestMeter ?? 0, f.updatedAt ?? Date.now())
+          `INSERT INTO profiles (id, name, data, rebirths, best_muscle, best_cage, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ).run(userId, f.name ?? '', row.data, f.rebirths ?? 0, f.bestMuscle ?? 0, f.bestCage ?? 0, f.updatedAt ?? Date.now())
         return guestId
       }
       return null

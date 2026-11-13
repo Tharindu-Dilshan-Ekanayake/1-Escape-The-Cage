@@ -4,14 +4,15 @@ import { buy } from '../../net/shop'
 import { useGame } from '../../store/game'
 import Icon from '../Icon'
 import StrokeText from '../StrokeText'
+import FitBox from './FitBox'
 import GiftTimer from './GiftTimer'
 import { Price } from './parts'
 import { GRADIENTS, u } from './style'
 
 /** X2 WINS only shows where there's room for it (it's in the Store too). */
 const PASSES = [
-  { product: 'muscleX2', label: 'X2 MUSCLE', icon: 'muscle' },
-  { product: 'winsX2', label: 'X2 WINS', icon: 'trophy', className: 'pp-tall-only' },
+  { product: 'muscleX2', label: 'X2 STRENGTH', icon: 'muscle' },
+  { product: 'winsX2', label: 'X2 WINS', icon: 'trophy' },
 ]
 
 /** Rainbow rays turning slowly behind a pass's icon. */
@@ -40,7 +41,7 @@ function PassButton({ product, label, icon, className = '' }) {
         )}
         <Icon name={icon} size={u(150)} className="relative" />
       </span>
-      <span style={{ fontSize: u(46), marginTop: u(-30), transform: 'rotate(8deg)' }}>
+      <span className="whitespace-nowrap" style={{ fontSize: u(40), marginTop: u(-30), transform: 'rotate(8deg)' }}>
         <StrokeText stroke={u(10)} gradient={GRADIENTS.rainbow}>
           {label}
         </StrokeText>
@@ -70,21 +71,28 @@ function PassButton({ product, label, icon, className = '' }) {
 /** How big the right-hand column is against the reference: smaller, so it crowds the view less. */
 const COLUMN_SCALE = 0.66
 
-/** Down the right-hand side, as in the reference: the FREE GIFT, then the x2 passes. */
-export function PassButtons() {
-  const pushing = useGame((s) => s.pushing)
+/**
+ * Down the right-hand side, as in the reference: the FREE GIFT, then the x2 passes -
+ * under the top bar, in far enough that the labels (wider than the buttons) stay on
+ * screen, and shrunk if need be to end `maxHeight` CSS pixels down, short of the touch
+ * controls.
+ */
+export function PassButtons({ maxHeight = Infinity }) {
   return (
-    <div
-      className="pointer-events-none absolute flex flex-col items-center"
-      style={{ right: u(20), top: u(96), gap: u(18), transform: `scale(${COLUMN_SCALE})`, transformOrigin: 'top right' }}
+    <FitBox
+      className="pointer-events-none absolute"
+      maxHeight={maxHeight}
+      maxScale={COLUMN_SCALE}
+      origin="top right"
+      style={{ right: `calc(env(safe-area-inset-right, 0px) + 6px + ${u(30)})`, top: 'calc(var(--hud-top) + var(--top-clear, 0px) + var(--topbar-height))' }}
     >
-      <GiftTimer />
-      <div className="flex flex-col items-center" style={{ gap: u(18), visibility: pushing ? 'hidden' : 'visible' }}>
+      <div className="flex flex-col items-center" style={{ gap: u(18) }}>
+        <GiftTimer />
         {PASSES.map((pass) => (
           <PassButton key={pass.product} {...pass} />
         ))}
       </div>
-    </div>
+    </FitBox>
   )
 }
 

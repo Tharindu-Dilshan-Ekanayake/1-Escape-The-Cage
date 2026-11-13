@@ -7,8 +7,8 @@ import { createProfile, createSession } from '@shared/logic'
  * Everything the UI renders from. Written by the network layer (profile, events) and
  * the 10 Hz game ticker (zones, timers) - never from a frame loop.
  *
- * Components must select narrowly (`useGame((s) => s.profile.wins)`), so a Muscle tick
- * re-renders the Muscle label and nothing else.
+ * Components must select narrowly (`useGame((s) => s.profile.wins)`), so a Strength tick
+ * re-renders the Strength label and nothing else.
  */
 
 export const useGame = create((set) => ({
@@ -39,7 +39,6 @@ export const useGame = create((set) => ({
   zone: {
     trainZone: -1,
     trainZoneNear: -1,
-    pushZone: false,
     pad: -1,
     egg: null,
     portal: null,
@@ -47,8 +46,10 @@ export const useGame = create((set) => ({
     sphinx: false,
     auras: false,
     potions: false,
-    /** Up the mountain, in a SAFEZONE by the next boulder: that stage's index, else -1. */
-    climbBoulder: -1,
+    /** At the bars of the next cage: its index, else -1. */
+    cage: -1,
+    /** In the gauntlet: the room you're in (behind cage `room`), else -1. */
+    room: -1,
   },
 
   /** Which modal panel is open: 'rebirth' | 'daily' | 'pets' | 'items' | 'store' | ... */
@@ -56,21 +57,15 @@ export const useGame = create((set) => ({
   /** Extra data for the open panel (e.g. which egg the hatch panel is for). */
   panelData: null,
 
-  /** True while you're up the mountain (the frame-rate state is push in pushControl). */
-  pushing: false,
   /** True while Boxity shows an ad break: the game stands still. */
   paused: false,
   /**
-   * Crushed, and waiting to respawn (Boxity's death screen):
-   * `{ stage, need, seconds }`, seconds being Boxity's countdown (0: Respawn may be pressed).
+   * The big message of the moment in the cages: `{ kind, ..., id }` - 'smash' (cage
+   * `cage` broken), 'win' (`wins` from a WIN pad) or 'escaped' (a world's last pad).
    */
-  death: null,
-  /** Up the mountain: 'push' (pushing a boulder) or 'free' (walking a SAFEZONE); null in the plaza. */
-  climb: null,
-  /** The big message of the moment up the track: { kind: 'clear' | 'crushed' | 'top', ..., id }. */
-  pushBanner: null,
+  banner: null,
   /**
-   * The Wins the counter shows while a cashed-in climb's Wins fly home to it (it counts up
+   * The Wins the counter shows while a cashed-in run's Wins fly home to it (it counts up
    * as each trophy lands); null the rest of the time, when it shows your Wins.
    */
   winsShown: null,
@@ -95,10 +90,7 @@ export const useGame = create((set) => ({
   togglePanel: (panel) => set((s) => (s.panel === panel ? { panel: null, panelData: null } : { panel, panelData: null })),
 
   setPaused: (paused) => set({ paused }),
-  setDeath: (death) => set({ death }),
-  setPushing: (pushing) => set(pushing ? { pushing, panel: null, panelData: null } : { pushing, pushBanner: null }),
-  setClimb: (climb) => set({ climb }),
-  showPushBanner: (banner) => set({ pushBanner: banner ? { ...banner, id: performance.now() } : null }),
+  showBanner: (banner) => set({ banner: banner ? { ...banner, id: performance.now() } : null }),
   /** Holds the Wins counter at `wins` (what you had before a payout), for the Wins on their way to it. */
   holdWins: (wins) => set((s) => ({ winsShown: s.winsShown ?? Math.min(wins, s.profile.wins) })),
   /** Some of them have landed: the counter counts up (never past your real Wins). */

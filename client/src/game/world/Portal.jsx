@@ -64,7 +64,7 @@ function PortalSwirl({ portal, geometry }) {
 }
 
 /**
- * The world portals' swirls: Future World's electric blue. Their frames are part of the
+ * The world portals' swirls: Shadow Prison's deep violet. Their frames are part of the
  * static blocks (see portalFrame.js).
  */
 export function Portal() {

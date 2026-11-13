@@ -182,33 +182,26 @@ function airborne(vy) {
 }
 
 /**
- * Pushing a boulder: both arms up and forward with the palms on the rock, leaning into
- * it, legs driving (striding with the speed). `effort` (0-1) is how hard you're
- * pushing; `strain` (0-1) is how close a boulder that's too heavy is to crushing you -
- * the stance digs in and the whole body trembles.
+ * At a cage's bars, pulling them apart: both arms out in front at chest height, hands
+ * gripping the middle two bars - `spread` (0-1) of the way from close together to wide
+ * apart, as far as the bars have given - the body leaning back on braced legs. `heave`
+ * (0-1) is a tap's effort: the arms drive further apart and straighten, the lean deepens
+ * and everything shakes with the strain.
  */
-function pushing(time, phase, speed, maxSpeed, effort, strain) {
-  const ratio = clamp01(Math.abs(speed) / Math.max(maxSpeed, 0.001))
-  const shake = Math.sin(time * 41) * 0.06 * strain
-  const lean = 0.18 + 0.32 * effort + 0.15 * strain
-  add('Spine1', -lean + shake, 0, 0, 1)
-  add('Neck1', 0.3 + 0.1 * strain, 0, 0, 1)
-  for (const [name, out] of [
-    ['ArmL1', OUT_L],
-    ['ArmR1', OUT_R],
-  ]) {
-    add(name, -2.0 - 0.15 * effort + shake, -0.12 * out, 0, 1)
-  }
-  add('ArmL2', -0.45 + 0.2 * effort, 0, 0, 1)
-  add('ArmR2', -0.45 + 0.2 * effort, 0, 0, 1)
-  // Legs: a short driving stride while moving, a dug-in lunge while straining.
-  const cycle = Math.sin(phase)
-  const leg = 0.7 * ratio * (1 - strain)
-  add('LegL1', cycle * leg - 0.5 * strain, 0.06 * OUT_L, 0, 1)
-  add('LegR1', -cycle * leg + 0.55 * strain, 0.06 * OUT_R, 0, 1)
-  add('LegL2', Math.max(0, -cycle) * 1.0 * ratio + 0.8 * strain, 0, 0, 1)
-  add('LegR2', Math.max(0, cycle) * 1.0 * ratio + 0.15 * strain, 0, 0, 1)
-  pose.lift += (Math.abs(Math.cos(phase)) * 0.04 - 0.02) * ratio - 0.12 * strain
+function prying(w, spread, heave, time) {
+  const shake = Math.sin(time * 46) * 0.035 * heave
+  const open = 0.22 + 0.5 * spread + 0.16 * heave
+  add('ArmL1', -1.32 + shake, open * OUT_L, 0, w)
+  add('ArmR1', -1.32 - shake, open * OUT_R, 0, w)
+  add('ArmL2', -0.62 + 0.38 * heave, 0, 0, w)
+  add('ArmR2', -0.62 + 0.38 * heave, 0, 0, w)
+  add('Spine1', 0.1 + 0.14 * heave, 0, 0, w)
+  add('Neck1', -0.08 - 0.1 * heave, 0, 0, w)
+  add('LegL1', -0.42, 0.08 * OUT_L, 0, w)
+  add('LegR1', 0.34 + 0.1 * heave, 0.08 * OUT_R, 0, w)
+  add('LegL2', 0.5, 0, 0, w)
+  add('LegR2', 0.16, 0, 0, w)
+  pose.lift -= (0.08 + 0.03 * heave) * w
 }
 
 /**
@@ -244,30 +237,6 @@ function seated(time) {
   pose.lift -= SIT_DROP
 }
 
-/** Flattened by a boulder: arms and legs splayed out like a starfish. */
-function splat(w) {
-  add('ArmL1', -0.2, 1.3 * OUT_L, 0, w)
-  add('ArmR1', -0.2, 1.3 * OUT_R, 0, w)
-  add('LegL1', 0, 0.5 * OUT_L, 0, w)
-  add('LegR1', 0, 0.5 * OUT_R, 0, w)
-}
-
-/** Arms up and waving, bouncing on the spot: the celebration at the top. */
-function cheering(time, w) {
-  const wave = Math.sin(time * 10) * 0.28
-  add('ArmL1', -2.7 + wave, 0.38 * OUT_L, 0, w)
-  add('ArmR1', -2.7 - wave, 0.38 * OUT_R, 0, w)
-  add('ArmL2', -0.25, 0, 0, w)
-  add('ArmR2', -0.25, 0, 0, w)
-  add('LegL1', -0.12, 0.06 * OUT_L, 0, w)
-  add('LegR1', -0.12, 0.06 * OUT_R, 0, w)
-  add('LegL2', 0.22, 0, 0, w)
-  add('LegR2', 0.22, 0, 0, w)
-  add('Spine1', 0.1, 0, 0, w)
-  add('Neck1', -0.15, 0, 0, w)
-  pose.lift += Math.abs(Math.sin(time * 7)) * 0.16 * w
-}
-
 /** The win dance: fists punching the air in turn, hips swinging, bouncing to the beat. */
 function dancing(time, w) {
   const beat = time * 7
@@ -286,19 +255,114 @@ function dancing(time, w) {
   pose.lift += Math.abs(a) * 0.14 * w
 }
 
+/**
+ * Bodybuilding poses, held standing: the double biceps (upper arms out level, fists up by
+ * the head), the front lat spread (fists on the hips, elbows wide, the back flared) and
+ * the most muscular (hunched over, fists together in front, everything tensed). Each
+ * trembles a little with the effort.
+ */
+function doubleBiceps(w, time) {
+  const tense = Math.sin(time * 31) * 0.014
+  add('ArmL1', -0.12, (1.5 + tense) * OUT_L, 0, w)
+  add('ArmR1', -0.12, (1.5 - tense) * OUT_R, 0, w)
+  add('ArmL2', 0, 1.8 * OUT_L, 0, w)
+  add('ArmR2', 0, 1.8 * OUT_R, 0, w)
+  add('Spine1', -0.08, 0, 0, w)
+  add('Neck1', -0.06, 0, 0, w)
+  add('LegL1', 0, 0.12 * OUT_L, 0, w)
+  add('LegR1', 0, 0.12 * OUT_R, 0, w)
+}
+
+function latSpread(w, time) {
+  const tense = Math.sin(time * 29) * 0.012
+  add('ArmL1', -0.3, (0.62 + tense) * OUT_L, 0, w)
+  add('ArmR1', -0.3, (0.62 - tense) * OUT_R, 0, w)
+  add('ArmL2', -0.2, -2.0 * OUT_L, 0, w)
+  add('ArmR2', -0.2, -2.0 * OUT_R, 0, w)
+  add('Spine1', -0.12, 0, 0, w)
+  add('Neck1', -0.04, 0, 0, w)
+  add('LegL1', 0, 0.14 * OUT_L, 0, w)
+  add('LegR1', 0, 0.14 * OUT_R, 0, w)
+  pose.lift += 0.01 * w
+}
+
+function mostMuscular(w, time) {
+  const tense = Math.sin(time * 33) * 0.016
+  add('ArmL1', -0.78 + tense, 0.4 * OUT_L, 0, w)
+  add('ArmR1', -0.78 - tense, 0.4 * OUT_R, 0, w)
+  add('ArmL2', -0.25, -1.65 * OUT_L, 0, w)
+  add('ArmR2', -0.25, -1.65 * OUT_R, 0, w)
+  add('Spine1', 0.2, 0, 0, w)
+  add('Neck1', 0.12, 0, 0, w)
+  add('LegL1', -0.12, 0.16 * OUT_L, 0, w)
+  add('LegR1', -0.12, 0.16 * OUT_R, 0, w)
+  add('LegL2', 0.24, 0, 0, w)
+  add('LegR2', 0.24, 0, 0, w)
+  pose.lift -= 0.05 * w
+}
+
+const POSES = [doubleBiceps, latSpread, mostMuscular]
+/** Seconds standing still before you start your posing routine; each pose's hold, and the blend between them. */
+const POSE_AFTER = 3.5
+const POSE_HOLD = 2.4
+const POSE_EASE = 0.35
+/** The routine, then this long relaxing (grooving) before it starts again. */
+const POSE_CYCLE = POSES.length * POSE_HOLD + 7
+/** How long you hold the double biceps on putting on a new body. */
+const FLEX_TIME = 2.6
+
+/** 0 to 1 over `ease` at the start of `hold`, back to 0 over its end. */
+const envelope = (t, hold, ease = POSE_EASE) => smooth(0, ease, t) * (1 - smooth(hold - ease, hold, t))
+
+/**
+ * Keeps a motion's posing up to date, per frame, before it's posed: `body` is the body
+ * worn (a new one - not the first - is shown off with a flex), and standing still a while
+ * starts the posing routine; moving, jumping, curling, dancing or a cage stops it. Writes
+ * `idle` (seconds still), and for computePose `posing` (0-1, how far into a pose),
+ * `poseA`/`poseB` (which, as it blends from one to the next) and `poseMix`.
+ */
+export function trackPosing(motion, body, delta) {
+  if (motion.body && body !== motion.body) motion.flexAt = motion.time
+  motion.body = body
+  const still =
+    motion.grounded && !motion.sitting && motion.speed < 0.4 && !(motion.pull > 0.05) && !(motion.dance > 0) && !(motion.curl > 0) && !motion.emoteClip
+  motion.idle = still ? (motion.idle ?? 0) + delta : 0
+  if (!still) motion.flexAt = -Infinity
+  const since = motion.time - (motion.flexAt ?? -Infinity)
+  motion.posing = 0
+  motion.poseA = 0
+  motion.poseB = 0
+  motion.poseMix = 0
+  if (since < FLEX_TIME) {
+    motion.posing = envelope(since, FLEX_TIME)
+  } else if (motion.idle > POSE_AFTER) {
+    const t = (motion.idle - POSE_AFTER) % POSE_CYCLE
+    const span = POSES.length * POSE_HOLD
+    if (t < span) {
+      const i = Math.min(POSES.length - 1, Math.floor(t / POSE_HOLD))
+      const f = t - i * POSE_HOLD
+      motion.posing = envelope(t, span)
+      motion.poseA = i
+      motion.poseB = Math.min(POSES.length - 1, i + 1)
+      motion.poseMix = i + 1 < POSES.length ? smooth(POSE_HOLD - POSE_EASE, POSE_HOLD, f) : 0
+    }
+  }
+}
+
 /** Seconds per automatic curl in a Train Zone (TRAIN_INTERVAL in balance.js). */
 const TRAIN_PERIOD = 0.8
 
 /**
  * @param {{ time?: number, speed?: number, maxSpeed?: number, grounded?: boolean,
- *   vy?: number, stride?: number, pushing?: boolean, effort?: number, strain?: number,
- *   crushed?: number, cheer?: number, curl?: number, training?: boolean,
- *   sitting?: boolean, dance?: number }} motion
- *   `pushing` puts the hands on a boulder; `speed` is then the push's speed, `effort`
- *   (0-1) how hard, `strain` (0-1) how close to being crushed, `crushed` (0-1) how
- *   flattened, and `cheer` (0-1) the celebration at the top. Otherwise `curl` (0-1) is a
+ *   vy?: number, stride?: number, pull?: number, spread?: number, heave?: number,
+ *   curl?: number, training?: boolean, sitting?: boolean, dance?: number, bulk?: number,
+ *   posing?: number, poseA?: number, poseB?: number, poseMix?: number }} motion
+ *   `pull` (0-1) grips a cage's bars to pull them apart, `spread` (0-1) how far apart
+ *   they've gone, `heave` (0-1) a tap's effort on them. Otherwise `curl` (0-1) is a
  *   lift in progress (0 = none), `sitting` sits you on a bench and `training` curls on a
- *   loop, on a Train Zone's bench, and `dance` (0-1) is the win dance.
+ *   loop, on a Train Zone's bench, and `dance` (0-1) is the win dance. `bulk` (0-1, how
+ *   built) carries the arms out wide of the lats, the way bodybuilders stand and walk;
+ *   `posing` and the rest (see trackPosing) strike a bodybuilding pose.
  */
 export function computePose(motion) {
   const {
@@ -308,15 +372,18 @@ export function computePose(motion) {
     grounded = true,
     vy = 0,
     stride: phase = time * 5,
-    pushing: onBoulder = false,
-    effort = 0,
-    strain = 0,
-    crushed = 0,
-    cheer = 0,
+    pull = 0,
+    spread = 0,
+    heave = 0,
     curl = 0,
     training = false,
     sitting = false,
     dance = 0,
+    bulk = 0,
+    posing = 0,
+    poseA = 0,
+    poseB = 0,
+    poseMix = 0,
   } = motion
   for (const name of POSED_BONES) {
     const b = pose.bones[name]
@@ -326,27 +393,34 @@ export function computePose(motion) {
   }
   pose.lift = 0
 
-  if (onBoulder) {
-    if (crushed > 0) splat(crushed)
-    else if (cheer > 0) {
-      stance(1 - cheer, time)
-      cheering(time, cheer)
-    } else pushing(time, phase, speed, maxSpeed, effort, strain)
-    return pose
-  }
   if (sitting) {
     seated(time)
   } else if (grounded) {
     const ratio = clamp01(speed / Math.max(maxSpeed, 0.001))
-    const still = (1 - smooth(0.05, 0.4, ratio)) * (1 - dance)
-    stance(still, time)
-    if (still > 0.01) grooving(time, still)
+    const still = (1 - smooth(0.05, 0.4, ratio)) * (1 - dance) * (1 - pull)
+    const show = still * posing
+    const relaxed = still - show
+    stance(relaxed, time)
+    if (relaxed > 0.01) grooving(time, relaxed)
+    if (show > 0.001) {
+      POSES[poseA](show * (1 - poseMix), time)
+      if (poseMix > 0) POSES[poseB](show * poseMix, time)
+    }
+    // Arms carried out wide of the lats the more built you are, standing or walking.
+    const flare = 0.32 * clamp01(bulk) * (1 - dance) * (1 - pull) * (1 - show)
+    add('ArmL1', 0, flare * OUT_L, 0, 1)
+    add('ArmR1', 0, flare * OUT_R, 0, 1)
+    add('LegL1', 0, 0.2 * flare * OUT_L, 0, 1)
+    add('LegR1', 0, 0.2 * flare * OUT_R, 0, 1)
     if (ratio > 0.02) stride(phase, ratio)
     if (dance > 0) dancing(time, dance)
+    if (pull > 0) prying(pull, spread, heave, time)
   } else {
     airborne(vy)
   }
-  if (training) curling((time / TRAIN_PERIOD) % 1, 1)
+  if (pull > 0.5) {
+    // Both hands on the bars: no curl.
+  } else if (training) curling((time / TRAIN_PERIOD) % 1, 1)
   else if (curl > 0) curling(curl, 1)
   return pose
 }

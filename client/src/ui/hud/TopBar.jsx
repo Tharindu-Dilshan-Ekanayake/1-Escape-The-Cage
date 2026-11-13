@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 
 import { isMuted, onMutedChange, setMuted } from '../../audio/sfx'
-import { useClearTop } from '../../bloxity/reserved'
 import { useBloxityStore } from '../../bloxity/store'
 import { useGame } from '../../store/game'
 import AuthHUD from '../AuthHUD'
@@ -26,21 +25,40 @@ function SoundButton() {
 }
 
 /**
- * The top-right corner: sound, leaderboards and your name tag. (Daily rewards are the
- * Gifts tile on the left.)
+ * The very top-right corner, upright or sideways: your name tag right in the corner, with
+ * sound and leaderboards beside it - or, `stacked` (an upright phone), in a row under it.
+ * (Daily rewards are the Gifts tile on the left.) As high as it goes: under Boxity's
+ * toolbar only where that spans the top (--top-clear, worked out by HUD).
  */
-export function TopBar() {
+export function TopBar({ stacked = false }) {
   const openPanel = useGame((s) => s.openPanel)
-  // Inside Boxity its trophy button has the leaderboards; on a phone its toolbar spans
-  // the top, so this sits below it.
+  // Inside Boxity its trophy button has the leaderboards.
   const embedded = useBloxityStore((s) => s.embedded)
-  const clear = useClearTop(0.55, 1)
-
-  return (
-    <div className="pointer-events-none absolute flex items-center" style={{ right: u(16), top: `calc(${u(14)} + ${clear}px)`, gap: u(12) }}>
+  const buttons = (
+    <>
       <SoundButton />
       {!embedded && <RoundButton icon="star" label="Leaderboards" onClick={() => openPanel('leaderboards')} iconSize={34} />}
-      <AuthHUD />
+    </>
+  )
+
+  return (
+    <div
+      className={`pointer-events-none absolute flex ${stacked ? 'flex-col items-end' : 'items-center'}`}
+      style={{ right: 'calc(env(safe-area-inset-right, 0px) + 10px)', top: 'calc(var(--hud-top) + var(--top-clear, 0px))', gap: u(12) }}
+    >
+      {stacked ? (
+        <>
+          <AuthHUD />
+          <div className="flex items-center" style={{ gap: u(12) }}>
+            {buttons}
+          </div>
+        </>
+      ) : (
+        <>
+          {buttons}
+          <AuthHUD />
+        </>
+      )}
     </div>
   )
 }

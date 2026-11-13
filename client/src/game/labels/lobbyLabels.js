@@ -1,9 +1,9 @@
-import { DUMBBELLS, EGGS, PETS, SHOP, TRAIN_ZONES, WORLD_PORTALS, WORLDS } from '@shared/balance'
+import { BODIES, EGGS, PETS, SHOP, TRAIN_ZONES, WORLD_PORTALS, WORLDS } from '@shared/balance'
 import { formatNumber } from '@shared/format'
 import { isZoneUnlocked } from '@shared/logic'
 import {
+  BODY_PADS,
   AURA_STAND,
-  DUMBBELL_PADS,
   EGG_STANDS,
   FREE_REWARD,
   PORTALS,
@@ -11,12 +11,11 @@ import {
   SHOP as SHOP_YARD,
   SPHINX_STAND,
   STATUE,
-  TRACK_START_Z,
   ZONE_X,
   zoneCenterZ,
 } from '@shared/world'
 
-import { STAGES } from '../push/course'
+import { bodyLook } from '../bodies'
 import { eggHeight } from '../world/eggs'
 import { ZONE_THEMES } from '../world/structures'
 
@@ -36,11 +35,11 @@ export const TEXT = {
 
 const tint = (hex) => ['#ffffff', hex, hex]
 
-/** "1X MUSCLE / 0 Rebirths", "2X MUSCLE / UNLOCKED", "30X MUSCLE / VERY OP! / 150K Wins"... */
+/** "1X STRENGTH / FREE", "2X STRENGTH / 1 Rebirth", "25X STRENGTH / VERY OP! / 200K Wins"... */
 export function zoneLabelSpec(index, unlocked) {
   const zone = TRAIN_ZONES[index]
   const theme = ZONE_THEMES[index]
-  const lines = [{ text: `${zone.mult}X MUSCLE`, size: 58, icon: 'muscle', gradient: tint(theme.text) }]
+  const lines = [{ text: `${zone.mult}X STRENGTH`, size: 58, icon: 'muscle', gradient: tint(theme.text) }]
   if (unlocked) {
     lines.push({ text: zone.rebirths === 0 && !zone.product ? 'FREE' : 'UNLOCKED', size: 46, gradient: TEXT.green })
   } else if (zone.product) {
@@ -50,13 +49,13 @@ export function zoneLabelSpec(index, unlocked) {
     const word = zone.rebirths === 1 ? 'Rebirth' : 'Rebirths'
     lines.push({ text: `${zone.rebirths} ${word}`, size: 48, icon: 'rebirth', gradient: TEXT.green })
   }
-  return { lines, pxPerUnit: 46 }
+  return { lines, pxPerUnit: 64 }
 }
 
 /** Largest a zone label can get, so its atlas slot fits every state. */
 const zoneReserve = (index) => {
   const zone = TRAIN_ZONES[index]
-  const lines = [{ text: `${zone.mult}X MUSCLE`, size: 58, icon: 'muscle' }]
+  const lines = [{ text: `${zone.mult}X STRENGTH`, size: 58, icon: 'muscle' }]
   if (zone.product) {
     lines.push({ text: zone.tag, size: 46 })
     lines.push({ text: `${formatNumber(SHOP[zone.product].price)} Wins`, size: 42, icon: 'trophy' })
@@ -69,52 +68,59 @@ const zoneReserve = (index) => {
 export function zoneLabels(profile) {
   return TRAIN_ZONES.map((zone, i) => ({
     id: `zone-${i}`,
-    position: [ZONE_X + 1, zone.product ? 6.4 : 5.6, zoneCenterZ(i)],
+    position: [ZONE_X + 0.6, zone.product ? 5.2 : 4.6, zoneCenterZ(i)],
     spec: zoneLabelSpec(i, isZoneUnlocked(profile, i)),
     reserve: zoneReserve(i),
     fade: 150,
   }))
 }
 
-/** Ownership state of each shop pad: 'equipped' | 'owned' | 'buy' | 'locked'. */
+/** Ownership state of each body shop pad: 'equipped' | 'owned' | 'buy' | 'locked'. */
 export function padState(profile, index) {
-  const dumbbell = DUMBBELLS[index]
-  if (profile.equippedDumbbell === dumbbell.id) return 'equipped'
-  if (profile.ownedDumbbells.includes(dumbbell.id)) return 'owned'
-  const previous = DUMBBELLS[index - 1]
-  return !previous || profile.ownedDumbbells.includes(previous.id) ? 'buy' : 'locked'
+  const body = BODIES[index]
+  if (profile.equippedBody === body.id) return 'equipped'
+  if (profile.ownedBodies.includes(body.id)) return 'owned'
+  const previous = BODIES[index - 1]
+  return !previous || profile.ownedBodies.includes(previous.id) ? 'buy' : 'locked'
 }
 
-/** "HELL DUMBBELL" over "+3.5K Muscle" over "110M Wins", "OWNED" or "EQUIPPED". */
+/** "Golden Body" over "x90 Strength" over "500K Wins", "OWNED" or "WEARING". */
 export function padLabelSpec(index, state) {
-  const dumbbell = DUMBBELLS[index]
+  const body = BODIES[index]
   const status =
     state === 'equipped'
-      ? { text: 'EQUIPPED', size: 40, gradient: TEXT.gold }
+      ? { text: 'WEARING', size: 40, gradient: TEXT.gold }
       : state === 'owned'
         ? { text: 'OWNED', size: 40, gradient: TEXT.blue }
-        : { text: `${formatNumber(dumbbell.cost)} Wins`, size: 40, icon: 'trophy', gradient: state === 'locked' ? TEXT.red : TEXT.price }
-  const lines = [{ text: `+${formatNumber(dumbbell.power)} Muscle`, size: 42, icon: 'muscle', fill: '#ffffff' }, status]
-  if (dumbbell.tag) lines.unshift({ text: dumbbell.name, size: 46, gradient: TEXT.red }, { text: dumbbell.tag, size: 46, rainbow: true })
+        : { text: body.cost === 0 ? 'FREE' : `${formatNumber(body.cost)} Wins`, size: 40, icon: 'trophy', gradient: state === 'locked' ? TEXT.red : TEXT.price }
+  const lines = [
+    { text: body.name, size: 40, fill: '#ffffff' },
+    { text: bodyLook(body.id).type, size: 34, gradient: TEXT.blue },
+    { text: `x${formatNumber(body.power)} Strength`, size: 42, icon: 'muscle', gradient: TEXT.gold },
+    status,
+  ]
+  if (body.tag) lines.unshift({ text: body.tag, size: 46, rainbow: true })
   return { lines, pxPerUnit: 70 }
 }
 
 /** Largest a pad label can get, so its atlas slot fits every state. */
 const padReserve = (index) => {
-  const dumbbell = DUMBBELLS[index]
+  const body = BODIES[index]
   const lines = [
-    { text: `+${formatNumber(dumbbell.power)} Muscle`, size: 42, icon: 'muscle' },
-    { text: `${formatNumber(dumbbell.cost)} Wins`, size: 40, icon: 'trophy' },
+    { text: body.name, size: 40 },
+    { text: bodyLook(body.id).type, size: 34 },
+    { text: `x${formatNumber(body.power)} Strength`, size: 42, icon: 'muscle' },
+    { text: `${formatNumber(body.cost)} Wins`, size: 40, icon: 'trophy' },
   ]
-  if (dumbbell.tag) lines.unshift({ text: dumbbell.name, size: 46 }, { text: dumbbell.tag, size: 46 })
+  if (body.tag) lines.unshift({ text: body.tag, size: 46 })
   return { lines }
 }
 
 export function padLabels(profile) {
-  return DUMBBELL_PADS.map((pad) => ({
+  return BODY_PADS.map((pad) => ({
     id: `pad-${pad.index}`,
     // Each row back rides higher, so they clear the rows in front seen from the plaza.
-    position: [pad.x, pad.y + 4.6 + pad.row * 1.25 + (DUMBBELLS[pad.index].tag ? 0.8 : 0), pad.z],
+    position: [pad.x, pad.y + 5.2 + pad.row * 1.25 + (BODIES[pad.index].tag ? 0.8 : 0), pad.z],
     spec: padLabelSpec(pad.index, padState(profile, pad.index)),
     reserve: padReserve(pad.index),
     fade: 70,
@@ -181,15 +187,15 @@ const title = (id, position, name, sub, gradient, fade = 120) => ({
   fade,
 })
 
-/** The section signs, the free reward, the portal, the statue's challenge and the boulder's. */
+/** The section signs, the free reward, the portal and the statue's challenge. */
 function placeLabels() {
   const portal = PORTALS[0]
   return [
-    title('title-zones', [ZONE_X + 8.5, 2.6, zoneCenterZ(1) - 4.8], 'Train Zones', 'Sit on a bench for EXTRA MUSCLE!', TEXT.orange, 90),
-    title('title-dumbbells', [SHOP_YARD.minX + 1, 2.6, SHOP_YARD.maxZ + 1.5], 'Dumbbells', 'Buy and Equip DUMBBELLS!', TEXT.blue, 90),
+    title('title-zones', [ZONE_X + 8, 7.4, 4], 'Train Zones', 'Sit on a bench for EXTRA STRENGTH!', TEXT.orange, 90),
+    title('title-bodies', [SHOP_YARD.minX - 2, 3.6, 4], 'Bodies', 'Buy a bodybuilder BODY for your avatar!', TEXT.blue, 90),
     title('title-auras', [AURA_STAND.x, 7.4, AURA_STAND.z - 3.2], 'Auras', 'Buy and Equip Auras!', TEXT.purple, 70),
     title('title-potions', [POTION_STAND.x + 1, 5.6, POTION_STAND.z], 'Potions', 'Use and Buy Potions Here!', TEXT.green, 70),
-    title('title-eggs', [0, 6.4, EGG_STANDS[0].z], 'Eggs', 'Hatch pets for more Muscle!', TEXT.gold, 80),
+    title('title-eggs', [0, 4.6, EGG_STANDS[0].z], 'Pets', 'Hatch eggs for pets: more Strength!', TEXT.gold, 90),
     {
       id: 'free-reward',
       position: [FREE_REWARD.x, 4.6, FREE_REWARD.z],
@@ -206,29 +212,10 @@ function placeLabels() {
     {
       id: 'statue',
       position: [STATUE.x, 13.8, STATUE.z],
-      spec: { lines: [{ text: 'CAN YOU REACH', size: 46, fill: '#ffffff' }, { text: 'THE TOP?', size: 62, gradient: TEXT.gold }], pxPerUnit: 40 },
+      spec: { lines: [{ text: 'CAN YOU ESCAPE', size: 46, fill: '#ffffff' }, { text: 'EVERY CAGE?', size: 62, gradient: TEXT.gold }], pxPerUnit: 40 },
       fade: 140,
     },
-    {
-      id: 'start-boulder',
-      position: [0, 6.6, TRACK_START_Z + 0.5],
-      spec: startBoulderLabelSpec(),
-      // Room for the longest first boulder of any world.
-      reserve: startBoulderLabelSpec(WORLDS.map((w) => w.stages[0]).reduce((a, b) => (b.boulder.length > a.boulder.length ? b : a))),
-      fade: 110,
-    },
   ]
-}
-
-/** The start boulder's sign: the first boulder of the world you're in (or `first`). */
-export function startBoulderLabelSpec(first = STAGES[0]) {
-  return {
-    lines: [
-      { text: first.boulder, size: 50, gradient: TEXT.white },
-      { text: `${formatNumber(first.need)} Recommended`, size: 40, icon: 'muscle', gradient: TEXT.gold },
-    ],
-    pxPerUnit: 46,
-  }
 }
 
 /** World portal `id`'s sign, seen from world `world`: where it goes, or back to World 1. */
@@ -247,7 +234,7 @@ export function portalLabelSpec(id, world) {
   return {
     lines: [
       { text: portal.name.toUpperCase(), size: 60, gradient: TEXT.blue },
-      { text: `${WORLDS[portal.world].stages.length} NEW STAGES!`, size: 40, fill: '#ffffff' },
+      { text: `${WORLDS[portal.world].cages.length} NEW CAGES!`, size: 40, fill: '#ffffff' },
       { text: `Need ${formatNumber(portal.wins)} Wins`, size: 40, icon: 'trophy', gradient: TEXT.gold },
     ],
     pxPerUnit: 52,

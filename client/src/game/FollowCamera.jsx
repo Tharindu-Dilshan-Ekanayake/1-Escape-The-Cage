@@ -2,8 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useRef } from 'react'
 import { Vector3 } from 'three'
 
-import { feetPoint } from './push/path'
-import { push } from './push/pushControl'
+
 import { runtime } from './runtime'
 
 /** How high above the player's feet the camera aims. */
@@ -30,52 +29,14 @@ const _target = new Vector3()
 /** Where the camera is looking, eased towards its target (one camera, so module-level). */
 const _lookAt = new Vector3()
 
-/** Up the track: how far behind and above the pusher the chase camera rides. */
-const CHASE_BEHIND = 7.5
-const CHASE_HEIGHT = 4.6
-/** It looks this far ahead of the pusher, over the boulder, up the track. */
-const CHASE_AHEAD = 5
-const CHASE_LOOK_HEIGHT = 2
-const CHASE_SMOOTHING = 6
-
-const smoothstep = (a, b, x) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
-  return t * t * (3 - 2 * t)
-}
-
-/**
- * Where the chase camera wants to be while pushing, and what it looks at: behind and
- * above you looking up the track over the boulder; pulled back and swung aside when it
- * crushes you; swung out to your side at the top, onto you cheering by your boulder
- * with THE TOP's trophy beyond.
- */
-function chaseTarget(out, look) {
-  const m = push.meter
-  const x = push.x
-  if (push.phase === 'top') {
-    const k = smoothstep(0, 1.4, (performance.now() - push.endedAt) / 1000)
-    feetPoint(m - CHASE_BEHIND * (1 - k) - 1.5 * k, x * 0.5 + 3 * k, out)
-    out.y += CHASE_HEIGHT - 1.4 * k
-    feetPoint(m + 3.5 * k, x, look)
-    look.y += 1.8 + 0.8 * k
-    return
-  }
-  const crushed = push.phase === 'crushed' ? smoothstep(0, 0.8, (performance.now() - push.endedAt) / 1000) : 0
-  feetPoint(m - CHASE_BEHIND - 4 * crushed, x * 0.5 + 2.5 * crushed, out)
-  out.y += CHASE_HEIGHT + 2.5 * crushed
-  feetPoint(m + CHASE_AHEAD * (1 - crushed), x * 0.7, look)
-  look.y += CHASE_LOOK_HEIGHT * (1 - crushed) + 0.6 * crushed
-}
-
 /**
  * Third-person orbit camera around the player.
  *
  * Mouse: drag (either button) orbits, wheel zooms. Touch: one-finger drag orbits (the
  * joystick owns the left side of the screen as a separate element), pinch zooms.
  *
- * Orbit state lives in `runtime.camera`, so after a push the camera can be handed back
- * exactly where it was taken from. While pushing it's a chase camera up the track
- * instead.
+ * Orbit state lives in `runtime.camera`, so anything that moves you (home from a WIN
+ * pad) can turn it round and snap it into place.
  */
 export function FollowCamera() {
   const camera = useThree((s) => s.camera)
@@ -158,16 +119,7 @@ export function FollowCamera() {
 
   useFrame((_state, rawDelta) => {
     const delta = Math.min(rawDelta, 0.05)
-    if (runtime.camera.mode === 'push') {
-      // Eased towards, so taking over from the orbit camera is a swoop, not a cut.
-      chaseTarget(_desired, _target)
-      const k = 1 - Math.exp(-CHASE_SMOOTHING * delta)
-      camera.position.lerp(_desired, k)
-      _lookAt.lerp(_target, k)
-      camera.lookAt(_lookAt)
-      return
-    }
-    // Whoever's being followed: you in the plaza, or up the mountain in a SAFEZONE.
+    // Whoever's being followed: you, unless something else has the camera's attention.
     const p = runtime.focus ?? runtime.player.position
     _target.set(p.x, p.y + LOOK_HEIGHT, p.z)
 
@@ -180,7 +132,10 @@ export function FollowCamera() {
       _target.z + Math.cos(yaw) * horizontal,
     )
 
-    // After a push the camera is far up the mountain; jump back rather than swoop.
+    // In the cages too it just follows, through the bars as need be: held inside the
+    // room you were in, it lurched every time you stepped through into the next.
+
+    // Teleported (home from a WIN pad): jump there rather than swoop.
     if (runtime.camera.snap) {
       runtime.camera.snap = false
       initialised.current = false

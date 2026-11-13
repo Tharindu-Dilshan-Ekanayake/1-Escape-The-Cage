@@ -5,14 +5,14 @@ import { iconUrl } from './icons'
 import StrokeText from './StrokeText'
 
 const TIPS = [
-  'Every click gives you Muscle!',
-  'Stand in a Train Zone to train automatically.',
-  'More Muscle = push the boulder further = more Wins!',
-  'Spend Wins on better dumbbells and eggs.',
-  'Rebirth at max level for x1.5 more Muscle per rebirth.',
-  'WATCH OUT! If you are not strong enough, the boulder will CRUSH you!',
-  'Let go of the boulder and it rolls back to the last SAFEZONE.',
-  'Your power drains as you push. When it hits 0, the boulder rolls back on you!',
+  'Every tap gives you Strength!',
+  'Sit on a gym bench to train automatically.',
+  'More Strength = break more cages = bigger WIN pads!',
+  'Every room has a WIN pad on the left. The deeper the room, the more it pays!',
+  'Buy bodybuilder BODIES: they multiply your Strength and your avatar becomes one!',
+  'Strong enough, and the bars burst just by walking into them.',
+  'Rebirth at max level for more Strength per tap, forever.',
+  'Hatch pets for even more Strength.',
 ]
 
 /**

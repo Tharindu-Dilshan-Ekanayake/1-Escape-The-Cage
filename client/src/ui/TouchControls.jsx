@@ -1,18 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { lift } from '../game/lift'
 import { runtime } from '../game/runtime'
 import { useGame } from '../store/game'
 import { GRADIENTS } from './hud/style'
+import { touchControls, useScreen } from './screen'
 import { iconUrl } from './icons'
 
 /** Joystick travel radius, in CSS pixels. */
 const RADIUS = 56
-
-function detectTouch() {
-  if (typeof window === 'undefined') return false
-  return window.matchMedia?.('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
-}
 
 /** The chunky round look of the HUD's buttons, sized in CSS pixels. */
 const roundButton = (size, background) => ({
@@ -24,34 +20,27 @@ const roundButton = (size, background) => ({
 
 /**
  * On-screen controls for touch devices: a floating joystick that appears wherever the
- * left side of the screen is touched (pushing a boulder, it pushes and steers), a big
- * LIFT button and a jump button (at a boulder, LIFT gives way to the prompt's PUSH
- * button, held to take it). Everything else is walking up to things - a Train Zone, a
- * pad - or tapping their prompt.
+ * left side of the screen is touched, a big LIFT button (PULL at a cage's bars, where
+ * it heaves them apart) and a jump button. Everything else is walking up to things - a Train
+ * Zone, a pad, a cage - or tapping their prompt.
  *
  * Writes straight into `runtime.input` and moves the knob through refs, so dragging
  * never re-renders React.
  */
 export function TouchControls() {
-  const [isTouch, setIsTouch] = useState(detectTouch)
-  const pushingBoulder = useGame((s) => s.climb === 'push')
-  // At a boulder LIFT makes way for the prompt's PUSH button, in the same spot.
-  const atBoulder = useGame((s) => s.zone.pushZone || s.zone.climbBoulder >= 0)
+  const screen = useScreen()
+  const isTouch = screen.touch
+  const { compact, lift: liftButton, jump: jumpButton } = touchControls(screen)
+  // At rest the joystick shows a faint ring - not on a short, sideways screen, where the
+  // menu and stats fill that corner (it still comes up wherever you touch).
+  const restOpacity = compact ? '0' : '0.35'
+  const atCage = useGame((s) => s.zone.cage >= 0)
   const ready = useGame((s) => s.playable)
   const baseRef = useRef(null)
   const knobRef = useRef(null)
   const active = useRef({ id: null, x: 0, y: 0 })
 
   // A touchscreen laptop can start with a mouse; show the controls on first touch.
-  useEffect(() => {
-    if (isTouch) return undefined
-    const onTouch = (e) => {
-      if (e.pointerType === 'touch') setIsTouch(true)
-    }
-    window.addEventListener('pointerdown', onTouch)
-    return () => window.removeEventListener('pointerdown', onTouch)
-  }, [isTouch])
-
   useEffect(
     () => () => {
       runtime.input.joyX = 0
@@ -104,7 +93,7 @@ export function TouchControls() {
     runtime.input.joyX = 0
     runtime.input.joyY = 0
     if (knobRef.current) knobRef.current.style.transform = 'translate(0px, 0px)'
-    if (baseRef.current) baseRef.current.style.opacity = '0.35'
+    if (baseRef.current) baseRef.current.style.opacity = restOpacity
   }
 
   return (
@@ -122,11 +111,11 @@ export function TouchControls() {
           style={{
             width: RADIUS * 2,
             height: RADIUS * 2,
-            opacity: 0.35,
-            left: RADIUS * 2.6,
-            // Resting low down, clear of the menu tiles above and the Wins and Muscle
-            // in the corner.
-            top: `calc(100% - ${RADIUS * 2.3}px)`,
+            opacity: restOpacity,
+            // Resting low in the middle of its patch, clear of the stats in the corner (it
+            // moves to wherever you touch).
+            left: `calc(50% - ${RADIUS}px)`,
+            top: `calc(100% - ${RADIUS * 2 + 22}px)`,
           }}
         >
           <div
@@ -137,21 +126,21 @@ export function TouchControls() {
         </div>
       </div>
 
-      {ready && !pushingBoulder && !atBoulder && (
+      {ready && (
         <button
           type="button"
-          aria-label="Lift"
+          aria-label={atCage ? 'Pull' : 'Lift'}
           className="pp-btn pp-chunky pp-pulse absolute z-20 flex touch-none flex-col items-center justify-center rounded-full"
-          style={{ ...roundButton(104, GRADIENTS.goldButton), right: 96, bottom: 12 }}
+          style={{ ...roundButton(liftButton.size, GRADIENTS.goldButton), right: liftButton.right, bottom: liftButton.bottom }}
           onPointerDown={(e) => {
             e.preventDefault()
             lift()
           }}
         >
-          <span className="pp-gloss" style={{ borderRadius: '52px 52px 30px 30px' }} />
-          <img src={iconUrl('muscle')} alt="" width="58" height="58" draggable={false} />
-          <span className="pp-stroke" style={{ fontSize: 18, marginTop: -6 }}>
-            LIFT
+          <span className="pp-gloss" style={{ borderRadius: `${liftButton.size / 2}px ${liftButton.size / 2}px 30px 30px` }} />
+          <img src={iconUrl('muscle')} alt="" width={liftButton.size * 0.56} height={liftButton.size * 0.56} draggable={false} />
+          <span className="pp-stroke" style={{ fontSize: liftButton.size * 0.17, marginTop: -6 }}>
+            {atCage ? 'PULL' : 'LIFT'}
           </span>
         </button>
       )}
@@ -160,7 +149,7 @@ export function TouchControls() {
         type="button"
         aria-label="Jump"
         className="pp-btn pp-chunky absolute z-20 flex touch-none items-center justify-center rounded-full text-white"
-        style={{ ...roundButton(70, GRADIENTS.slate), right: 14, bottom: 14 }}
+        style={{ ...roundButton(jumpButton.size, GRADIENTS.slate), right: jumpButton.right, bottom: jumpButton.bottom }}
         onPointerDown={(e) => {
           e.preventDefault()
           runtime.input.jump = true
@@ -175,8 +164,8 @@ export function TouchControls() {
           runtime.input.jump = false
         }}
       >
-        <span className="pp-gloss" style={{ borderRadius: '35px 35px 20px 20px' }} />
-        <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" strokeWidth="3.5">
+        <span className="pp-gloss" style={{ borderRadius: `${jumpButton.size / 2}px ${jumpButton.size / 2}px 20px 20px` }} />
+        <svg viewBox="0 0 24 24" width={jumpButton.size * 0.5} height={jumpButton.size * 0.5} fill="none" stroke="currentColor" strokeWidth="3.5">
           <path d="M5 15l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>

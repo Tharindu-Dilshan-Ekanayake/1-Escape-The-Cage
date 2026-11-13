@@ -1,14 +1,13 @@
 import { hash2, mulberry32 } from '@shared/rng'
-import { PLAZA, TRACK_START_Z } from '@shared/world'
+import { cageWallZ, GAUNTLET, MAX_CAGES, PLAZA } from '@shared/world'
 
 import { STYLE } from '../materials'
-import { RIM_X } from '../push/path'
 import { PALETTE } from '../sceneStyle'
 
 /**
  * The mountains ringing the plaza: tall, jagged grey voxel peaks, turning into
- * terracotta cliffs with grass on top either side of the boulder track, plus blocky
- * pines on the terraces.
+ * terracotta cliffs with grass on top either side of the canyon the cages run up, plus
+ * blocky pines on the terraces.
  *
  * Heights come from a smooth value-noise field quantised into terraces, sampled on a
  * coarse grid and greedy-merged into as few boxes as possible: a few hundred instances
@@ -16,10 +15,18 @@ import { PALETTE } from '../sceneStyle'
  */
 
 const CELL = 4
-const BOUNDS = { minX: -176, maxX: 156, minZ: -150, maxZ: 136 }
-/** The track climbs north out of the plaza through this gap (its own walls fill it). */
-const CORRIDOR = { minX: -RIM_X, maxX: RIM_X, minZ: -10000, maxZ: TRACK_START_Z }
-/** Terrain this close to the track is terracotta cliff; further out, grey rock. */
+/** The gauntlet's canyon, out to just past its walls' gravel. */
+const CORRIDOR = { minX: -GAUNTLET.halfWidth - 4.8, maxX: GAUNTLET.halfWidth + 4.8, minZ: -10000, maxZ: PLAZA.minZ }
+/** As far as the mountains go: round the plaza, and on past the end of the longest gauntlet. */
+const BOUNDS = { minX: -176, maxX: 156, minZ: cageWallZ(MAX_CAGES) - 40, maxZ: 136 }
+/**
+ * North of the plaza's own ring of mountains, only the canyon's sides are built: from in
+ * the cages nothing further out can be seen past them (and the fog), and every box out
+ * there would be drawn for nothing.
+ */
+const RING_MIN_Z = -150
+const CANYON_HALF = 64
+/** Terrain this close to the canyon is terracotta cliff; further out, grey rock. */
 const CLIFF_REACH = 30
 const STEP = 3
 
@@ -103,7 +110,7 @@ export function buildTerrain(blocks, { treeDensity = 1 } = {}) {
     for (let i = 0; i < cols; i += 1) {
       const x = BOUNDS.minX + (i + 0.5) * CELL
       const z = BOUNDS.minZ + (j + 0.5) * CELL
-      const h = terrainHeight(x, z)
+      const h = z < RING_MIN_Z && Math.abs(x) > CANYON_HALF ? 0 : terrainHeight(x, z)
       heights[j * cols + i] = h
       kinds[j * cols + i] = h === 0 ? 0 : isCliff(x, z) ? 2 : 1
     }
@@ -190,8 +197,8 @@ export function buildTerrain(blocks, { treeDensity = 1 } = {}) {
   }
 
   // Pines along the top of the walls round the plaza - over the Train Zones on the west,
-  // and round the other sides - rather than down beside the gyms or the track's gate,
-  // where they'd hide things.
+  // and round the other sides - rather than down beside the gyms or the way into the
+  // cages, where they'd hide things.
   const wallTrees = [
     [PLAZA.minX - 3, 26],
     [PLAZA.minX - 3, 10],
@@ -209,13 +216,5 @@ export function buildTerrain(blocks, { treeDensity = 1 } = {}) {
     placed.push({ x, z, reach })
     addTree(blocks, x, h, z, 1.15, rand)
   }
-  // And a couple inside the plaza's far corners, where they hide nothing.
-  for (const [x, z] of [
-    [PLAZA.maxX - 4, PLAZA.maxZ - 5],
-    [26, PLAZA.maxZ - 3],
-  ]) {
-    addTree(blocks, x, 0, z, 1.15, rand)
-  }
-
   return { trees }
 }

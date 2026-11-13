@@ -1,6 +1,7 @@
 import { boxityEnv } from '../bloxity/env'
 import { reportPlayer, reportRoom } from '../bloxity/platform'
 import { getSDK, safeCall, waitForSDK } from '../bloxity/sdk'
+import { resetRun } from '../game/cages/cageControl'
 import { runtime } from '../game/runtime'
 import { getGame } from '../store/game'
 import { setTransport } from './actions'
@@ -68,7 +69,7 @@ async function findDevServer() {
   for (const port of DEV_PORTS) {
     const url = `${window.location.protocol}//${window.location.hostname}:${port}`
     const health = await healthOf(url)
-    if (health?.ok && health.game === 'boulder') return url
+    if (health?.ok && health.game === 'cages') return url
   }
   return null
 }
@@ -103,6 +104,8 @@ async function healthOf(url) {
 }
 
 function startLocal(identity, message) {
+  // A new authority starts a new run: every cage whole again here too.
+  resetRun()
   const local = createLocalServer({ ...identity, onEvent: handleServerEvent })
   active = { kind: 'local', close: () => local.close() }
   currentRoom = null
@@ -160,6 +163,8 @@ function attachRoom(room, identity, Callbacks, relayRoomId = null) {
   room.onMessage('*', (type, payload) => {
     switch (type) {
       case 'spawn':
+        // A new session (a join, or Reset Character): a new run, every cage whole.
+        resetRun()
         runtime.player.position.set(payload.x, 0, payload.z)
         break
       case 'correct':
