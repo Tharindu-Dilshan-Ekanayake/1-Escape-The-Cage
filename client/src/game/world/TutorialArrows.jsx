@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Matrix4, Quaternion, Vector3 } from 'three'
 
 import { TUTORIAL } from '@shared/balance'
-import { DUMBBELL_PADS, EGG_STANDS, groundHeightAt, PUSH_ZONE, ZONE_HALF, ZONE_X, zoneCenterZ } from '@shared/world'
+import { BODY_PADS, EGG_STANDS, GAUNTLET, groundHeightAt, winPadRect, ZONE_HALF, ZONE_X, zoneCenterZ } from '@shared/world'
 
 import { getGame } from '../../store/game'
 import { createToyInstances, PropBuilder } from '../blocks'
@@ -15,11 +15,14 @@ const SPACING = 2.4
 /** Stop drawing arrows this close to the goal. */
 const ARRIVED = 3.5
 
+const FIRST_PAD = winPadRect(0)
+
 /** Ground point each tutorial step leads to. */
 const TARGETS = {
-  push: { x: 0, z: (PUSH_ZONE.minZ + PUSH_ZONE.maxZ) / 2 },
+  cage: { x: 0, z: GAUNTLET.startZ + 2.2 },
+  pad: { x: (FIRST_PAD.minX + FIRST_PAD.maxX) / 2, z: (FIRST_PAD.minZ + FIRST_PAD.maxZ) / 2 },
   zone0: { x: ZONE_X + ZONE_HALF.x - 3, z: zoneCenterZ(0) },
-  dumbbells: { x: DUMBBELL_PADS[1].x, z: DUMBBELL_PADS[1].z },
+  bodies: { x: BODY_PADS[1].x, z: BODY_PADS[1].z },
   eggs: { x: EGG_STANDS[0].x, z: EGG_STANDS[0].z - 3.5 },
 }
 
@@ -60,11 +63,11 @@ export function TutorialArrows() {
   useFrame((state) => {
     const instanced = ref.current
     if (!instanced) return
-    const { profile, pushing } = getGame()
+    const { profile } = getGame()
     const step = TUTORIAL[profile.tutorialStep]
     const target = step && TARGETS[step.target]
     const player = runtime.player.position
-    if (!target || pushing || runtime.camera.mode !== 'follow') {
+    if (!target || runtime.player.frozen) {
       instanced.count = 0
       return
     }

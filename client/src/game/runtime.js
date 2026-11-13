@@ -14,7 +14,7 @@ import { SPAWN } from '@shared/world'
 export const runtime = {
   player: {
     position: new Vector3(SPAWN.x, 0, SPAWN.z),
-    /** Facing, radians about +Y. PI faces north (-Z), towards the boulder. */
+    /** Facing, radians about +Y. PI faces north (-Z), towards the cages. */
     yaw: Math.PI,
     speed: 0,
     grounded: true,
@@ -22,12 +22,14 @@ export const runtime = {
     bench: -1,
     /** When the win dance (back in the lobby after cashing in) started; 0 when not dancing. */
     danceAt: 0,
-    /** 'idle' | 'walk' | 'train' (sat on a bench) | 'jump' | 'push' | 'dance' - what other players see. */
+    /** 'idle' | 'walk' | 'train' (sat on a bench) | 'jump' | 'pull' (at a cage's bars) | 'dance' - what other players see. */
     anim: 'idle',
-    /** Set when the controller should ignore input (pushing, cutscenes). */
+    /** Set when the controller should ignore input (cashing in on a WIN pad, cutscenes). */
     frozen: false,
     /** performance.now() of the last lift, for the curl. */
     liftedAt: 0,
+    /** performance.now() of the last tap at a cage's bars, for the heave on them. */
+    pullAt: 0,
     /** The Boxity emote playing: `{ id, at }` (at = performance.now() it started), or null. */
     emote: null,
   },
@@ -40,7 +42,7 @@ export const runtime = {
   },
 
   camera: {
-    /** 'follow' orbits the player; 'push' is the chase camera up the track (see push/Push.jsx). */
+    /** 'follow' orbits the player. */
     mode: 'follow',
     yaw: 0,
     pitch: 0.36,
@@ -49,7 +51,7 @@ export const runtime = {
     snap: false,
   },
 
-  /** What the sun's shadow box centres on while the camera is up the track with you. */
+  /** What the camera and the sun's shadow box follow instead of you, when set (cutscenes). */
   focus: null,
 
   /**
@@ -60,6 +62,9 @@ export const runtime = {
 
   /** Walls that come and go at runtime, e.g. locked Train Zones. */
   dynamicColliders: [],
+  /** The gauntlet of the world you're in: its walls, and the cages still standing (cages/cageControl). */
+  gauntletWalls: [],
+  cageDoors: [],
 
   /**
    * Things that get a blob shadow on low presets. Each entry is

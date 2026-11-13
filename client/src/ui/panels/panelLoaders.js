@@ -4,6 +4,7 @@
  * game is up (prefetchPanels), so opening a panel still never waits.
  */
 export const PANEL_LOADERS = {
+  bodies: () => import('./BodiesPanel'),
   pets: () => import('./PetsPanel'),
   rebirth: () => import('./RebirthPanel'),
   daily: () => import('./DailyRewardsPanel'),

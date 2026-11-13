@@ -1,4 +1,4 @@
-import { SHOP } from '@shared/balance'
+import { PETS, SHOP, TRAIN_ZONES } from '@shared/balance'
 
 import { buy } from '../../net/shop'
 import { useGame } from '../../store/game'
@@ -39,27 +39,27 @@ const ICONS = {
 }
 
 const BLURBS = {
-  muscleX2: 'Double every Muscle gain, forever',
-  winsX2: 'Double the Wins from every push, forever',
-  muscleX3: 'Triple every Muscle gain, forever',
-  winsX3: 'Triple the Wins from every push, forever',
-  vip: 'x1.5 Muscle and x1.5 Wins, forever',
-  potionsMuscle: 'Three x2 Muscle potions, cheaper',
+  muscleX2: 'Double every Strength gain, forever',
+  winsX2: 'Double the Wins from every WIN pad, forever',
+  muscleX3: 'Triple every Strength gain, forever',
+  winsX3: 'Triple the Wins from every WIN pad, forever',
+  vip: 'x1.5 Strength and x1.5 Wins, forever',
+  potionsMuscle: 'Three x2 Strength potions, cheaper',
   potionsWins: 'Three x2 Wins potions, cheaper',
   eggsSunset: 'Three Sunset Eggs to hatch',
   eggsUnicorn: 'Three Unicorn Eggs to hatch',
   eggsDemon: 'Three Demon Eggs to hatch',
-  zoneVeryOp: 'Unlocks the 30X Frost Gym',
-  zoneBest: 'Unlocks the 60X Galaxy Gym',
+  zoneVeryOp: `Unlocks the ${TRAIN_ZONES[5].mult}X Frost Gym`,
+  zoneBest: `Unlocks the ${TRAIN_ZONES[6].mult}X Galaxy Gym`,
   auraLightning: 'x1.25 Wins, and it crackles',
   auraGalaxy: 'x1.5 Wins, and it sparkles',
   auraWater: 'x2 Wins, and it splashes',
   auraFire: 'x3 Wins, and it blazes',
   auraRainbow: 'x5 Wins, in every colour',
-  sphinx: 'Limited: x150 Muscle pet',
+  sphinx: `Limited: x${PETS.sphinx.mult} Strength pet`,
 }
 
-/** Everything Wins can buy besides dumbbells, eggs and Muscle packs, grouped, with what it does. */
+/** Everything Wins can buy besides arms, eggs and Strength packs, grouped, with what it does. */
 export function StorePanel() {
   const passes = useGame((s) => s.profile.passes)
   const wins = useGame((s) => s.profile.wins)

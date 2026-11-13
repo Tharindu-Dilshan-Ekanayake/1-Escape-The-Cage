@@ -148,17 +148,6 @@ const dumbbell = svg(
     ]),
 )
 
-/** A big grey boulder with cracks and a highlight. */
-const boulder = svg(
-  `<path d="M14 62c-4-20 8-42 30-48 22-6 42 6 44 28 2 18-6 36-26 42-20 6-44-2-48-22z" fill="url(#bo-g)" stroke="${OUT}" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M40 30l8 12-6 10M66 52l-10 6 4 12M28 62l10-2" fill="none" stroke="#4a4f58" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M28 34c6-8 14-12 22-12" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".5"/>`,
-  vgrad('bo-g', [
-    [0, '#b6bcc6'],
-    [1, '#6d737e'],
-  ]),
-)
-
 /** A red gift box tied with a yellow ribbon and bow. */
 const gift = svg(
   `<path d="M50 30c-6-14-26-18-26-6 0 8 14 8 26 6zM50 30c6-14 26-18 26-6 0 8-14 8-26 6z" fill="#ffd23a" stroke="${OUT}" stroke-width="5" stroke-linejoin="round"/>
@@ -322,7 +311,6 @@ export const ICON_SVGS = {
   calendar,
   star,
   dumbbell,
-  boulder,
   gift,
   gear,
   home,

@@ -38,12 +38,17 @@ export const STYLE = {
   WATER: 11,
   /** Treadmill belt: dark rubber with ribs scrolling east along the top. */
   BELT: 12,
-  /** Big square studs, as on the track's cliffs in the reference. */
+  /** Big square studs: the gauntlet's pillars and its end gate. */
   BLOCK: 13,
   /** Big square studs with a grass cap and lip: the reference's grassy cliffs. */
   BLOCK_GRASS: 14,
-  /** Big floor tiles with thin seams and a faint checker: the track's floor. */
+  /** Big floor tiles with thin seams and a faint checker. */
   TILES: 15,
+  /**
+   * Cage bars: rods of any thickness ringed every 0.75 m up their length, a light band
+   * at the top of each ring.
+   */
+  BARS: 16,
 }
 
 /** Shared clock for animated styles; WorldClock advances it once per frame. */
@@ -240,8 +245,12 @@ const fragmentBody = /* glsl */ `
     } else if (style < 15.0) {
       if (isTop || vToyDepth < 0.55) col = uGrass * (isTop ? 1.0 : 0.86);
       col *= toyBlock(suv * 0.62);
-    } else {
+    } else if (style < 16.0) {
       col *= toyFloor(suv / 2.25);
+    } else {
+      vec2 cell = vec2(0.5, suv.y / 0.75);
+      col *= toyBlock(cell);
+      if (!isTop && fract(cell.y) > 0.86) col *= 1.12;
     }
 
     diffuseColor.rgb = col;

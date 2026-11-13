@@ -1,29 +1,29 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useState } from 'react'
 
+import { useGame } from '../../store/game'
 import { useQuality } from '../../store/quality'
 import { asToyInstance, BlockSet, disposeBlocks, PropBuilder } from '../blocks'
 import { glowTime } from '../glow'
-import { createToyMaterial, sharedMaterials, toyTime } from '../materials'
+import { createToyMaterial, GRASS_COLOR, sharedMaterials, toyTime } from '../materials'
+import { applyLobbyTheme, PALETTE } from '../sceneStyle'
 import { createGroundGeometry, createGroundMap } from './ground'
 import { buildEggStands } from './eggs'
-import { buildLawnCurbs } from './lawns'
 import { buildPortalFrame } from './portalFrame'
-import { buildPushZone } from './pushZone'
 import { createPaintedSigns } from './signs'
 import { buildShop, buildStands, buildStatue, buildTrainZones } from './structures'
 import { buildTerrain } from './terrain'
-import { buildWaterfall } from './waterfall'
 
 /**
  * The static lobby: ground plane, every box (mountains, trees, Train Zones, stages,
  * stands, the statue) in one InstancedMesh, and every non-box prop (egg stands' wings...)
  * merged into one mesh. Three draw calls for the whole environment.
  *
- * Built once. Quality only decides tree density at build time and whether the result
+ * Built once per world, in that world's colours (applyLobbyTheme: rebuilt for each).
+ * Quality only decides the mountains' tree density at build time and whether the result
  * casts/receives realtime shadows.
  */
-export function World() {
+function WorldOf({ world }) {
   const shadows = useQuality((s) => s.settings.shadows === 'realtime')
   const [signs, setSigns] = useState([])
 
@@ -60,17 +60,16 @@ export function World() {
   const { blocks, ground, props } = useMemo(() => {
     performance.mark('pp:world-start')
     const { decorDensity, maxTexture } = useQuality.getState().settings
+    applyLobbyTheme(world)
+    GRASS_COLOR.set(PALETTE.grass)
     const set = new BlockSet()
     buildTerrain(set, { treeDensity: decorDensity })
-    buildLawnCurbs(set)
     buildTrainZones(set)
     const propBuilder = new PropBuilder()
     buildShop(set, { detail: decorDensity >= 0.75 })
-    buildPushZone(set)
     buildStands(set)
     buildStatue(set, propBuilder)
     buildPortalFrame(set)
-    buildWaterfall(set)
     buildEggStands(set, propBuilder)
 
     const map = createGroundMap(maxTexture)
@@ -82,7 +81,7 @@ export function World() {
       props: asToyInstance(propBuilder.build(), sharedMaterials().toy),
       ground: { geometry: createGroundGeometry(), material: groundMaterial, map },
     }
-  }, [])
+  }, [world])
 
   useEffect(
     () => () => {
@@ -106,6 +105,12 @@ export function World() {
       ))}
     </>
   )
+}
+
+/** The lobby of the world you're in, built afresh when you go to another. */
+export function World() {
+  const world = useGame((s) => s.profile.world)
+  return <WorldOf key={world} world={world} />
 }
 
 export default World

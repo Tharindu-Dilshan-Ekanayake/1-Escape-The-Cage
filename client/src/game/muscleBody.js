@@ -13,72 +13,160 @@ import { BoxGeometry, BufferAttribute, BufferGeometry } from 'three'
  * on the GPU, with no geometry work as they level up.
  *
  * Profiles are keyframes up the part, from its bottom (t 0) to its top (t 1):
- * [t, half-width, half-depth, out (away from the body's middle), forward], in the
- * rig's bind-pose units (the whole avatar is 6.4 tall, its parts' boxes 2.4).
+ * [t, inner half-width, outer half-width, front, back, out], in the rig's bind-pose
+ * units (the whole avatar is 6.4 tall, its parts' boxes 2.4). Each cross-section is four
+ * quarter-ellipses - towards the body and away from it, in front and behind - so a
+ * muscle can bulge on one side only: a bicep in front, a tricep behind, a forearm on its
+ * outside. `out` moves the whole section away from the body's middle. The torso and legs
+ * are written [t, half-width, half-depth, out, forward] (see symmetric).
  */
+
+/**
+ * Muscles, on the bodybuilder shape only: bumps standing out of its section, each
+ * [angle, t, height, angular width, width along], summed. The angle goes round the part:
+ * on an arm or leg 0 is straight out from the body, PI/2 the front, PI the inside, -PI/2
+ * the back; on the torso 0 is its left side (+x), PI/2 the front, PI its right, -PI/2 the
+ * back. A negative height is a groove (the spine). Muscles show as the body builds,
+ * in the geometry itself: the sun lights them and the body's shine picks them out.
+ */
+const PEC = 0.45
+const TORSO_LOBES = [
+  // Pecs: a slab either side of the breastbone.
+  [Math.PI / 2 - PEC, 0.79, 0.15, 0.36, 0.085],
+  [Math.PI / 2 + PEC, 0.79, 0.15, 0.36, 0.085],
+  // The six-pack: three pairs down the front, between the lines drawn on it (bodies.js).
+  ...[0.21, 0.33, 0.45].flatMap((t) => [
+    [Math.PI / 2 - 0.2, t, 0.075, 0.16, 0.05],
+    [Math.PI / 2 + 0.2, t, 0.075, 0.16, 0.05],
+  ]),
+  // Lats flaring out under the arms, either side towards the back.
+  [-0.32, 0.63, 0.13, 0.48, 0.13],
+  [Math.PI + 0.32, 0.63, 0.13, 0.48, 0.13],
+  // Obliques low on the sides.
+  [0.2, 0.22, 0.05, 0.35, 0.08],
+  [Math.PI - 0.2, 0.22, 0.05, 0.35, 0.08],
+  // Traps and the upper back, and the spine's groove down the middle.
+  [-Math.PI / 2 - 0.45, 0.92, 0.09, 0.45, 0.07],
+  [-Math.PI / 2 + 0.45, 0.92, 0.09, 0.45, 0.07],
+  [-Math.PI / 2, 0.6, -0.06, 0.08, 0.3],
+]
+const ARM_LOBES = [
+  // The bicep's peak, in front.
+  [Math.PI / 2, 0.71, 0.1, 0.55, 0.075],
+  // The tricep's horseshoe: two heads behind.
+  [-Math.PI / 2 - 0.35, 0.72, 0.075, 0.35, 0.09],
+  [-Math.PI / 2 + 0.35, 0.72, 0.075, 0.35, 0.09],
+  // The deltoid's three heads round the shoulder.
+  [Math.PI / 2 - 0.5, 0.93, 0.08, 0.5, 0.055],
+  [0, 0.94, 0.09, 0.55, 0.055],
+  [-0.65, 0.93, 0.07, 0.5, 0.055],
+  // The forearm's swell on its outside, under the elbow.
+  [0.6, 0.39, 0.075, 0.5, 0.09],
+]
+const LEG_LOBES = [
+  // The quads: the outer sweep, the teardrop above the inside of the knee, the middle.
+  [0.35, 0.76, 0.1, 0.6, 0.12],
+  [Math.PI - 0.6, 0.6, 0.1, 0.45, 0.06],
+  [Math.PI / 2, 0.8, 0.06, 0.5, 0.1],
+  // The calf's two heads, behind.
+  [-Math.PI / 2 - 0.45, 0.28, 0.09, 0.4, 0.07],
+  [-Math.PI / 2 + 0.45, 0.28, 0.09, 0.4, 0.07],
+  // The glute, at the top behind.
+  [-Math.PI / 2, 0.98, 0.08, 0.6, 0.06],
+]
+
+/** How much the muscles push out at angle `phi`, height `t`. */
+function lobeAt(lobes, phi, t) {
+  let d = 0
+  for (const [p0, t0, height, wp, wt] of lobes) {
+    const dp = Math.atan2(Math.sin(phi - p0), Math.cos(phi - p0)) / wp
+    const dt = (t - t0) / wt
+    d += height * Math.exp(-dp * dp - dt * dt)
+  }
+  return d
+}
+
+/** [t, half-width, half-depth, out, forward] keys as the four-sided kind: the same both sides, shifted forward. */
+const symmetric = (keys) => keys.map(([t, w, d, out, forward]) => [t, w, w, d + forward, d - forward, out])
 
 const SHAPES = {
   torso: {
     bones: 1,
     around: [6, 4],
-    along: 10,
+    along: 12,
     skinny: {
-      keys: [
+      keys: symmetric([
         [0, 0.72, 0.42, 0, 0],
         [0.25, 0.66, 0.4, 0, 0.01],
         [0.55, 0.64, 0.38, 0, 0.01],
         [0.8, 0.8, 0.43, 0, 0.02],
         [0.94, 0.78, 0.42, 0, 0],
         [1, 0.62, 0.38, 0, 0],
-      ],
+      ]),
       top: 0.12,
       bottom: 0.08,
     },
-    // A V: a narrow waist and stomach under a broad chest that juts forward, and traps.
+    // A bodybuilder's V: a tight waist over the belt, abs a little proud of it, the lats
+    // sweeping out under the arms to a chest as broad as it gets, the pecs standing out in
+    // front over them, a thick back behind, and traps rising to the neck.
     buff: {
       keys: [
-        [0, 1.05, 0.72, 0, 0],
-        [0.22, 1.08, 0.8, 0, 0.06],
-        [0.45, 1.25, 0.86, 0, 0.08],
-        [0.7, 1.7, 1.05, 0, 0.14],
-        [0.88, 1.85, 1.05, 0, 0.1],
-        [1, 1.35, 0.85, 0, 0.02],
+        [0, 1.0, 1.0, 0.74, 0.72, 0],
+        [0.12, 0.94, 0.94, 0.77, 0.7, 0],
+        [0.3, 1.02, 1.02, 0.86, 0.74, 0],
+        [0.48, 1.26, 1.26, 0.92, 0.86, 0],
+        [0.64, 1.62, 1.62, 1.08, 0.97, 0],
+        [0.76, 1.84, 1.84, 1.24, 1.0, 0],
+        [0.88, 1.82, 1.82, 1.12, 1.02, 0],
+        [1, 1.32, 1.32, 0.82, 0.88, 0],
       ],
-      top: 0.4,
+      top: 0.42,
       bottom: 0.15,
+      lobes: TORSO_LOBES,
     },
   },
   arm: {
     bones: 2,
-    around: [3, 3],
-    along: 14,
-    // Hand, wrist, forearm, elbow, upper arm, shoulder.
+    around: [4, 4],
+    along: 18,
+    // A plain, thin arm: fist, wrist, forearm, elbow, upper arm, shoulder.
     skinny: {
       keys: [
-        [0, 0.26, 0.28, 0, 0.02],
-        [0.1, 0.21, 0.22, 0, 0],
-        [0.32, 0.25, 0.26, 0, 0],
-        [0.5, 0.22, 0.23, 0, 0],
-        [0.72, 0.26, 0.27, 0, 0.01],
-        [0.92, 0.32, 0.32, 0, 0],
-        [1, 0.28, 0.28, 0, 0],
+        [0, 0.24, 0.26, 0.27, 0.27, 0],
+        [0.06, 0.25, 0.27, 0.28, 0.27, 0],
+        [0.13, 0.2, 0.21, 0.21, 0.21, 0],
+        [0.3, 0.23, 0.25, 0.25, 0.24, 0],
+        [0.5, 0.21, 0.22, 0.22, 0.22, 0],
+        [0.7, 0.24, 0.25, 0.27, 0.25, 0],
+        [0.88, 0.29, 0.31, 0.3, 0.3, 0],
+        [1, 0.27, 0.27, 0.27, 0.27, 0],
       ],
       top: 0.14,
       bottom: 0.12,
     },
-    // Big fists, huge forearms, biceps bulging forward and a round ball of a deltoid.
+    // A bodybuilder's arm, heroic but true to life: a solid fist on a narrow wrist; a
+    // forearm swelling to its outside just under a tight elbow; above it a bicep that
+    // peaks out in front over a horseshoe of tricep behind; a groove; and a round
+    // deltoid capping the shoulder and standing out from it.
     buff: {
       keys: [
-        [0, 0.72, 0.78, 0, 0.04],
-        [0.1, 0.62, 0.66, 0, 0],
-        [0.3, 0.95, 0.92, 0.04, 0.02],
-        [0.5, 0.8, 0.82, 0, 0],
-        [0.68, 1.08, 1.12, 0.02, 0.12],
-        [0.86, 1.3, 1.25, 0.08, 0.02],
-        [1, 1.05, 1.02, 0.05, 0],
+        [0, 0.4, 0.43, 0.44, 0.42, 0],
+        [0.07, 0.44, 0.47, 0.5, 0.46, 0],
+        [0.14, 0.31, 0.34, 0.33, 0.32, 0],
+        [0.24, 0.44, 0.53, 0.48, 0.46, 0.02],
+        [0.36, 0.55, 0.69, 0.6, 0.58, 0.05],
+        [0.46, 0.5, 0.58, 0.52, 0.53, 0.03],
+        [0.53, 0.39, 0.43, 0.41, 0.45, 0],
+        [0.61, 0.55, 0.6, 0.7, 0.64, 0],
+        [0.71, 0.66, 0.7, 0.93, 0.72, 0.02],
+        [0.8, 0.64, 0.69, 0.8, 0.71, 0.03],
+        [0.86, 0.6, 0.7, 0.66, 0.66, 0.06],
+        [0.93, 0.72, 0.89, 0.8, 0.78, 0.1],
+        [1, 0.58, 0.66, 0.62, 0.62, 0.06],
       ],
-      top: 0.45,
-      bottom: 0.3,
+      top: 0.32,
+      bottom: 0.22,
+      lobes: ARM_LOBES,
     },
   },
   leg: {
@@ -87,49 +175,72 @@ const SHAPES = {
     along: 12,
     // Foot, ankle, calf, knee, thigh, hip.
     skinny: {
-      keys: [
+      keys: symmetric([
         [0, 0.3, 0.36, 0, 0.1],
         [0.08, 0.22, 0.24, 0, 0.02],
         [0.3, 0.27, 0.29, 0, -0.03],
         [0.5, 0.24, 0.25, 0, 0],
         [0.78, 0.3, 0.31, 0, 0.01],
         [1, 0.36, 0.38, 0, 0],
-      ],
+      ]),
       top: 0.1,
       bottom: 0,
     },
-    // Calves bulging back, big quads forward.
+    // A bodybuilder's legs: a calf bulging out behind and to the side over a narrow
+    // ankle, a tight knee, then the quads - a teardrop above the inside of the knee,
+    // sweeping out wide and forward up the thigh - into a solid hip.
     buff: {
       keys: [
-        [0, 0.55, 0.66, 0, 0.14],
-        [0.08, 0.45, 0.5, 0, 0.03],
-        [0.3, 0.64, 0.7, 0, -0.08],
-        [0.5, 0.52, 0.56, 0, 0],
-        [0.76, 0.76, 0.84, 0.02, 0.06],
-        [1, 0.75, 0.74, 0, 0],
+        [0, 0.5, 0.55, 0.74, 0.5, 0],
+        [0.08, 0.38, 0.42, 0.42, 0.42, 0],
+        [0.24, 0.48, 0.6, 0.5, 0.74, 0.02],
+        [0.4, 0.44, 0.5, 0.48, 0.56, 0],
+        [0.5, 0.42, 0.45, 0.5, 0.46, 0],
+        [0.6, 0.62, 0.62, 0.74, 0.6, 0],
+        [0.78, 0.7, 0.84, 0.88, 0.74, 0.04],
+        [1, 0.74, 0.78, 0.76, 0.78, 0],
       ],
       top: 0.15,
       bottom: 0,
+      lobes: LEG_LOBES,
     },
   },
 }
 
-/** Each body part: its shape, which way is out (+X is the avatar's left), its bones top first. */
+/**
+ * Each body part: its shape, which way is out (+X is the avatar's left), its bones top
+ * first, and its number in the body's `aMuscle` attribute (0 is the head: see bodies.js).
+ */
 const PARTS = {
-  torso: { shape: 'torso', side: 0, bones: ['Spine1'] },
-  arm_L: { shape: 'arm', side: 1, bones: ['ArmL1', 'ArmL2'] },
-  arm_R: { shape: 'arm', side: -1, bones: ['ArmR1', 'ArmR2'] },
-  leg_L: { shape: 'leg', side: 1, bones: ['LegL1', 'LegL2'] },
-  leg_R: { shape: 'leg', side: -1, bones: ['LegR1', 'LegR2'] },
+  torso: { shape: 'torso', side: 0, bones: ['Spine1'], code: 2 },
+  arm_L: { shape: 'arm', side: 1, bones: ['ArmL1', 'ArmL2'], code: 1 },
+  arm_R: { shape: 'arm', side: -1, bones: ['ArmR1', 'ArmR2'], code: 1 },
+  leg_L: { shape: 'leg', side: 1, bones: ['LegL1', 'LegL2'], code: 3 },
+  leg_R: { shape: 'leg', side: -1, bones: ['LegR1', 'LegR2'], code: 3 },
 }
 export const MUSCLE_SLOTS = Object.keys(PARTS)
 
 /**
+ * How finely your own avatar's parts are divided (others' keep their shapes' own, coarser
+ * division): it's always close to the camera, and fine enough for its muscles to stand
+ * out in the geometry. About 5.5k triangles, against 2.4k.
+ */
+export const HERO_DETAIL = { torso: { along: 20, around: [10, 6] }, arm: { along: 24, around: [6, 6] }, leg: { along: 18, around: [5, 5] } }
+
+/** A part's own entry in a detail table keyed by shape (like HERO_DETAIL), or null. */
+export const partDetail = (slot, detail) => detail?.[PARTS[slot]?.shape] ?? null
+
+/**
  * How far the arms' roots (shoulders) and legs' (hips) move out from the avatar's own,
  * so the limbs stay at the sides of the body however broad it is, and how tall it
- * stands: [skinny, bodybuilder], blended like the morph.
+ * stands: [skinny, bodybuilder], blended like the body's morph - and the shoulders a
+ * further `armOut` as the arms themselves grow, so they sit snug against the chest.
  */
-export const BODY_OFFSETS = { shoulder: [-0.84, 0.55], hip: [-0.32, 0.05], tall: [0.95, 1.12] }
+export const BODY_OFFSETS = { shoulder: [-0.84, 0.2], hip: [-0.32, 0.05], tall: [0.95, 1.12], armOut: 0.45 }
+
+/** How far a shoulder moves out for a body `built` (0-1) with arms `armBuilt` (0-1). */
+export const shoulderOffset = (built, armBuilt) =>
+  BODY_OFFSETS.shoulder[0] + (BODY_OFFSETS.shoulder[1] - BODY_OFFSETS.shoulder[0]) * built + BODY_OFFSETS.armOut * armBuilt
 
 /**
  * How much of each box face's texture the rounded part shows, from the face's middle:
@@ -223,22 +334,27 @@ const built = new Map()
 /**
  * Body part `slot` (a key of PARTS) for its box geometry `source`: a smooth,
  * non-indexed, skinned geometry - skinny, with the bodybuilder as its one (relative)
- * morph target - in the same space as the box. `boneIndex(name)` gives a bone's skin
- * index. Shared: clone it to keep it. Returns null for a slot that isn't a body part.
+ * morph target - in the same space as the box, with `aMuscle` (its part's number, and
+ * where on the part each point is: across and front -1..1, up 0..1) for the body's
+ * muscle definition. `boneIndex(name)` gives a bone's skin index. `detail` overrides how
+ * finely it's divided - `{ along, around }`, as SHAPES has them (the body shop shows two
+ * dozen at once, more coarsely). Shared: clone it to keep it. Returns null for a slot
+ * that isn't a body part.
  */
-export function buildMusclePart(slot, source, boneIndex) {
+export function buildMusclePart(slot, source, boneIndex, detail = null) {
   const part = PARTS[slot]
   if (!part) return null
   source.computeBoundingBox()
   const { min, max } = source.boundingBox
   const bones = part.bones.map(boneIndex)
-  const key = [slot, ...bones, ...min.toArray(), ...max.toArray()].join('|')
-  if (!built.has(key)) built.set(key, buildPart(part, source, bones))
+  const key = [slot, detail?.along ?? 0, detail?.around?.join(',') ?? '', ...bones, ...min.toArray(), ...max.toArray()].join('|')
+  if (!built.has(key)) built.set(key, buildPart(part, source, bones, detail))
   return built.get(key)
 }
 
-function buildPart(part, source, bones) {
-  const shape = SHAPES[part.shape]
+function buildPart(part, source, bones, detail) {
+  const base = SHAPES[part.shape]
+  const shape = { ...base, along: detail?.along || base.along, around: detail?.around || base.around }
   const { min, max } = source.boundingBox
   const cx = (min.x + max.x) / 2
   const cz = (min.z + max.z) / 2
@@ -251,6 +367,7 @@ function buildPart(part, source, bones) {
   const builds = [shape.skinny, shape.buff]
   const positions = [[], []]
   const uvs = []
+  const muscle = []
   const skinIndex = []
   const skinWeight = []
   const index = []
@@ -282,16 +399,23 @@ function buildPart(part, source, bones) {
         const theta = Math.atan2(v, u)
         const t = Math.min(1, Math.max(0, (p.y - y0) / (y1 - y0)))
         const cap = face.axis === 'y' ? face.dir : 0
+        // Which quarter of the section: towards the body or away, in front or behind.
+        const outward = part.side !== 0 && u * part.side > 0
+        // The angle round the part the muscles are laid out by (see TORSO_LOBES).
+        const phi = part.side !== 0 ? Math.atan2(v, u * part.side) : theta
         builds.forEach((build, k) => {
-          const rx = profile(build.keys, t, 1)
-          const rz = profile(build.keys, t, 2)
+          const rx = profile(build.keys, t, outward ? 2 : 1)
+          const rz = profile(build.keys, t, v > 0 ? 3 : 4)
           const dome = cap > 0 ? build.top : cap < 0 ? -build.bottom : 0
+          const muscle = build.lobes ? rho * lobeAt(build.lobes, phi, t) : 0
           positions[k].push(
-            cx + part.side * profile(build.keys, t, 3) + rho * rx * Math.cos(theta),
+            cx + part.side * profile(build.keys, t, 5) + (rho * rx + muscle) * Math.cos(theta),
             p.y + dome * (1 - rho * rho),
-            cz + profile(build.keys, t, 4) + rho * rz * Math.sin(theta),
+            cz + (rho * rz + muscle) * Math.sin(theta),
           )
         })
+
+        muscle.push(part.code, u, v, t)
 
         // A limb bends between its two bones round the middle (elbow, knee).
         const upper = bones.length > 1 ? smoothstep(0.4, 0.6, t) : 1
@@ -320,6 +444,7 @@ function buildPart(part, source, bones) {
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions[0]), 3))
   geometry.setAttribute('normal', new BufferAttribute(skinny, 3))
   geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2))
+  geometry.setAttribute('aMuscle', new BufferAttribute(new Float32Array(muscle), 4))
   geometry.setAttribute('skinIndex', new BufferAttribute(new Float32Array(skinIndex), 4))
   geometry.setAttribute('skinWeight', new BufferAttribute(new Float32Array(skinWeight), 4))
   const dp = new Float32Array(count * 3)
@@ -394,34 +519,40 @@ const AVATAR_BOXES = {
 /** The double-biceps flex: upper arms turned out just above level, forearms on up past upright. */
 const FLEX_UPPER = 1.66
 const FLEX_FORE = 1.75
+const FLEX_TUCK = 0.5
 
 /**
  * A full bodybuilder in the double-biceps flex - upper arms out to the sides, forearms
  * up, fists by the head - for statues: each body part (keyed as PARTS) as a plain
  * geometry, position and normal, in avatar units with its feet at y 0, facing +z. The
  * same shapes as the players' bodies, posed as the skeleton would pose them: each arm
- * vertex turned by its upper arm and forearm, blended by its skin weights.
+ * vertex turned by its upper arm and forearm, blended by its skin weights. `build` is how
+ * built (the morph, 0 skinny to 1 a bodybuilder), and `detail` how finely each part is
+ * divided ({ along, around } by part shape - torso, arm, leg - or null: as the players').
  */
-export function flexingBodybuilder() {
+export function flexingBodybuilder(build = 1, detail = null) {
   const parts = {}
   for (const [slot, [w, h, d, x, y]] of Object.entries(AVATAR_BOXES)) {
     const box = new BoxGeometry(w, h, d).translate(x, y, 0)
     // Top bones (Spine1, ArmL1 ...) are skin index 0, the lower ones 1.
-    parts[slot] = posed(PARTS[slot], buildMusclePart(slot, box, (name) => (name.endsWith('1') ? 0 : 1)), x, y + h / 2)
+    const fine = detail?.[PARTS[slot].shape] ?? null
+    parts[slot] = posed(PARTS[slot], buildMusclePart(slot, box, (name) => (name.endsWith('1') ? 0 : 1), fine), x, y + h / 2, build)
     box.dispose()
   }
   return parts
 }
 
-/** `source`'s bodybuilder shape, its arms flexed about the shoulder at (x, top). */
-function posed(part, source, x, top) {
+/** `source`'s shape `build` of the way to a bodybuilder's, its arms flexed about the shoulder at (x, top). */
+function posed(part, source, x, top, build) {
   const pos = source.getAttribute('position')
   const normal = source.getAttribute('normal')
   const weight = source.getAttribute('skinWeight')
   const [dp] = source.morphAttributes.position
   const [dn] = source.morphAttributes.normal
   const arm = part.shape === 'arm'
-  const out = part.side * (arm ? BODY_OFFSETS.shoulder[1] : part.shape === 'leg' ? BODY_OFFSETS.hip[1] : 0)
+  // Raised in the flex, an arm turns about the top of its shoulder: tucked in a little
+  // further than hanging down, so its deltoid still meets the chest.
+  const out = part.side * (arm ? shoulderOffset(build, build) - FLEX_TUCK * build : part.shape === 'leg' ? BODY_OFFSETS.hip[1] * build : 0)
   // Shoulder and elbow, and the elbow where the upper arm's turn takes it.
   const sx = x + out
   const ex = sx
@@ -434,12 +565,12 @@ function posed(part, source, x, top) {
   const positions = new Float32Array(pos.count * 3)
   const normals = new Float32Array(pos.count * 3)
   for (let i = 0; i < pos.count; i += 1) {
-    const px = pos.getX(i) + dp.getX(i) + out
-    const py = pos.getY(i) + dp.getY(i)
-    const pz = pos.getZ(i) + dp.getZ(i)
-    let nx = normal.getX(i) + dn.getX(i)
-    let ny = normal.getY(i) + dn.getY(i)
-    const nz = normal.getZ(i) + dn.getZ(i)
+    const px = pos.getX(i) + dp.getX(i) * build + out
+    const py = pos.getY(i) + dp.getY(i) * build
+    const pz = pos.getZ(i) + dp.getZ(i) * build
+    let nx = normal.getX(i) + dn.getX(i) * build
+    let ny = normal.getY(i) + dn.getY(i) * build
+    const nz = normal.getZ(i) + dn.getZ(i) * build
     let x2 = px
     let y2 = py
     if (arm) {

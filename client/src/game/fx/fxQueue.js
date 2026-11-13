@@ -24,10 +24,11 @@ const bursts = []
  * without particles.
  *
  * @param {{ x: number, y: number, z: number, count?: number, speed?: number,
- *           palette?: 'confetti' | 'gold' | 'power' }} burst
+ *           palette?: 'confetti' | 'gold' | 'power', colors?: string[] }} burst
+ *   `colors` ('#rrggbb') in place of a palette: bits of a broken cage, in its colours.
  */
-export function burst({ x, y, z, count = 30, speed = 7, palette = 'confetti' }) {
-  bursts.push({ x, y, z, count, speed, palette })
+export function burst({ x, y, z, count = 30, speed = 7, palette = 'confetti', colors = null }) {
+  bursts.push({ x, y, z, count, speed, palette, colors })
   if (bursts.length > MAX_BURSTS) bursts.shift()
 }
 

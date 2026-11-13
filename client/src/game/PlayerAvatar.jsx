@@ -1,5 +1,5 @@
 import { useFrame } from '@react-three/fiber'
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Bone, Box3, BufferAttribute, BufferGeometry, DataTexture, MeshLambertMaterial, Skeleton, SkinnedMesh, Vector3 } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
@@ -9,6 +9,9 @@ import { loadLook } from '../bloxity/avatarLoader'
 import { useBloxity } from '../bloxity/BloxityContext'
 import { getSDK } from '../bloxity/sdk'
 import { shareLook } from '../net/connection'
+import { useQuality } from '../store/quality'
+import { offerShowcase } from './bodyShowcase'
+import { HERO_DETAIL } from './muscleBody'
 import { attachAccessory, detachAccessory, restInverses, updateFollowers } from './avatarItems'
 import {
   animateRig,
@@ -19,8 +22,8 @@ import {
   collectRig,
   disposeMergedBody,
   mergeBody,
-  placeHand,
   prepareMuscleParts,
+  placeHand,
   resetPose,
 } from './avatarRig'
 
@@ -67,7 +70,11 @@ export const BloxityAvatar = forwardRef(function BloxityAvatar(props, ref) {
   // A custom character, if one is worn: undefined while it's looked up, null for none.
   const character = useCustomCharacter(props.equipped)
   if (!baseScene || character === undefined) return null
-  if (character) return <CharacterAvatar ref={ref} baseScene={baseScene} character={character} {...props} />
+  if (character) {
+    // A custom character is its own model: no rounded body to divide or show off.
+    const { detail: _unused, onBody: _none, ...rest } = props // eslint-disable-line no-unused-vars
+    return <CharacterAvatar ref={ref} baseScene={baseScene} character={character} {...rest} />
+  }
   return <DressedAvatar ref={ref} baseScene={baseScene} {...props} />
 })
 
@@ -114,10 +121,15 @@ function useBaseBody() {
 }
 
 const DressedAvatar = forwardRef(function DressedAvatar(
-  { baseScene, equipped, proportions, onReady, onStep, targetHeight = 1.8, motionRef, handRef, ...props },
+  { baseScene, equipped, proportions, onReady, onStep, targetHeight = 1.8, motionRef, handRef, detail = null, onBody, ...props },
   ref,
 ) {
   const [assembled, setAssembled] = useState(false)
+  // Told of every new body merged (your own avatar: for the body shop - see bodyShowcase).
+  const onBodyRef = useRef(onBody)
+  useEffect(() => {
+    onBodyRef.current = onBody
+  }, [onBody])
   /** The merged body currently shown; replaced on every re-assembly. */
   const bodyRef = useRef(null)
 
@@ -143,8 +155,9 @@ const DressedAvatar = forwardRef(function DressedAvatar(
     return collected
   }, [character])
 
+
   // The rounded body's parts, built bit by bit while the rest of the avatar loads.
-  useEffect(() => prepareMuscleParts(rig), [rig])
+  useEffect(() => prepareMuscleParts(rig, detail), [rig, detail])
 
   // Measured once, from the bind pose, before proportions touch the root scale.
   const fit = useMemo(() => {
@@ -196,7 +209,8 @@ const DressedAvatar = forwardRef(function DressedAvatar(
         // One draw call for the body: merge the assembled parts.
         try {
           disposeMergedBody(holder.current)
-          holder.current = mergeBody(rig)
+          holder.current = mergeBody(rig, detail)
+          if (holder.current) onBodyRef.current?.(rig)
         } catch (err) {
           console.warn('[bloxity] could not merge the body; drawing its parts', err)
           for (const mesh of rig.skinnedMeshes) mesh.visible = true
@@ -218,7 +232,7 @@ const DressedAvatar = forwardRef(function DressedAvatar(
         })
       }
     }
-  }, [rig, equipped, onStep])
+  }, [rig, equipped, onStep, detail])
 
   // Frees what this avatar made when it goes (other players come and go). Loaded
   // part scenes and textures are shared through the loader cache, so they stay.
@@ -251,7 +265,7 @@ const DressedAvatar = forwardRef(function DressedAvatar(
       // Order matters: proportions reset every bone to its rest pose, and the
       // animation then rotates on top of that clean base.
       const motion = motionRef?.current ?? fallbackMotion(delta)
-      applyProportions(rig, proportionsRef.current, motion.bulk)
+      applyProportions(rig, proportionsRef.current, motion.bulk, motion)
       animateRig(rig, motion, 1 / fit.scale)
       applyEmote(rig, motion.emoteClip, motion.emoteTime, motion.emoteWeight)
       if (handRef?.current) placeHand(rig, handRef.current)
@@ -279,7 +293,7 @@ const DressedAvatar = forwardRef(function DressedAvatar(
 
 /**
  * An invisible stand-in with just what a dressed body asks of its shader - a skinned,
- * morphing, textured Lambert mesh - in the scene from the start, so the start-up shader
+ * morphing, textured body - in the scene from the start, so the start-up shader
  * warm-up (which compiles hidden things too) builds that program with the rest. Your
  * avatar, dressed only once the SDK has said in what (after the warm-up), then draws
  * without a compile of its own. Kept for good: its material keeps the program alive.
@@ -475,10 +489,25 @@ export const PlayerAvatar = forwardRef(function PlayerAvatar(props, ref) {
   // isn't a change: only a different one re-dresses you.
   const lookKey = JSON.stringify(avatar ?? null)
   const look = useMemo(() => JSON.parse(lookKey), [lookKey])
+  // Divided finely enough for its muscles to stand out - but not on LOW, where every
+  // triangle counts (chosen once, so a preset dropping mid-game never re-dresses you).
+  const [detail] = useState(() => (useQuality.getState().level === 'LOW' ? null : HERO_DETAIL))
+  // Your body, once merged, goes on show in the body shop in every body (bodyShowcase).
+  const proportionsRef = useRef(proportions)
+  const rigRef = useRef(null)
+  const handleBody = useCallback((rig) => {
+    rigRef.current = rig
+    offerShowcase(rig, proportionsRef.current)
+  }, [])
+  useEffect(() => {
+    proportionsRef.current = proportions
+    if (rigRef.current) offerShowcase(rigRef.current, proportions)
+  }, [proportions])
+  useEffect(() => () => offerShowcase(null, null), [])
   // Dressed once, in what you're really wearing: not until the SDK has said what that
   // is (or failed to), rather than in nothing first.
   if (status === 'idle' || status === 'loading') return null
-  return <BloxityAvatar ref={ref} {...props} equipped={look} proportions={proportions} onStep={game.loadingStep} />
+  return <BloxityAvatar ref={ref} {...props} equipped={look} proportions={proportions} onStep={game.loadingStep} detail={detail} onBody={handleBody} />
 })
 
 

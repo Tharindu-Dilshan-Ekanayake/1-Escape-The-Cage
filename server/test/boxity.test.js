@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 
-import { BOXITY_BOARDS } from '../../shared/balance.js'
-import { createProfile, TRACKS } from '../../shared/logic.js'
+import { BOXITY_BOARDS, BREAK, WORLDS } from '../../shared/balance.js'
+import { createProfile } from '../../shared/logic.js'
 import { PlayerSession } from '../../shared/session.js'
-import { PUSH_ZONE } from '../../shared/world.js'
+import { cageWallZ, GAUNTLET, winPadRect } from '../../shared/world.js'
 import { isGuestId, legionId, noteScores } from '../src/boxity.js'
 import { adoptGuestProgress, closeStorage, loadProfile, openStorage, saveProfile } from '../src/db.js'
 
@@ -23,7 +23,7 @@ test('Boxity report ids: legion_<id>, no mode suffix; our own guests are never r
 
 test('the leaderboards are declared as Boxity takes them', () => {
   const ids = BOXITY_BOARDS.map((b) => b.id)
-  assert.deepEqual(ids, ['muscle', 'rebirths', 'wins'])
+  assert.deepEqual(ids, ['strength', 'rebirths', 'wins'])
   for (const board of BOXITY_BOARDS) {
     assert.match(board.id, /^[a-z0-9_-]{1,32}$/)
     assert.ok(['best', 'sum', 'latest'].includes(board.mode))
@@ -54,16 +54,15 @@ test('a guest who signs in brings their progress to a new account - once', async
   assert.equal((await loadProfile('account-1', 'Player', 'pod:b')).wins, 500)
 })
 
-test('Wins earned climbing are counted for the Most Wins board', () => {
+test('Wins earned on WIN pads are counted for the Most Wins board', () => {
   const p = createProfile('a', 'A')
-  p.muscle = 30
-  const at = { x: 0, y: 0, z: (PUSH_ZONE.minZ + PUSH_ZONE.maxZ) / 2 }
+  p.muscle = WORLDS[0].cages[0].need * BREAK.smash
+  const at = { x: 0, y: 0, z: cageWallZ(0) + GAUNTLET.wallHalf + 1 }
   const s = new PlayerSession(p, { now: 0, emit: () => {}, getPosition: () => at })
-  const track = TRACKS[0]
-  s.handle('startPush', {}, 0)
-  s.handle('pushAt', { meter: track.stageTop(0), x: 0 }, 4000)
-  const pad = track.winPads[0]
-  s.handle('pushAt', { meter: pad.meter + 1, x: (pad.minX + pad.maxX) / 2 }, 5000)
-  assert.equal(p.wins, pad.wins)
-  assert.equal(s.winsEarned, pad.wins)
+  s.handle('hit', {}, 1000)
+  const pad = winPadRect(0)
+  Object.assign(at, { x: (pad.minX + pad.maxX) / 2, z: (pad.minZ + pad.maxZ) / 2 })
+  s.handle('claimPad', { pad: 0, x: at.x, z: at.z }, 2000)
+  assert.equal(p.wins, WORLDS[0].cages[0].wins)
+  assert.equal(s.winsEarned, p.wins)
 })

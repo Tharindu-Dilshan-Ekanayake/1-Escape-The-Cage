@@ -8,7 +8,7 @@ import { GRADIENTS, u } from './style'
 
 /**
  * At max level, a big pulsing call to rebirth at the top of the screen, for as long as
- * it lasts: tap it for the Rebirth panel. (Muscle keeps growing at max level, but your
+ * it lasts: tap it for the Rebirth panel. (Strength keeps growing at max level, but your
  * level doesn't, so it's the moment to rebirth.)
  */
 export function RebirthNotice() {

@@ -2,12 +2,13 @@ import { Room } from '@colyseus/core'
 
 import { applyOfflineProgress } from '../../../shared/logic.js'
 import { PlayerSession } from '../../../shared/session.js'
-import { clampToWalkable, isPushReturn, MAX_MOVE_SPEED, SPAWN } from '../../../shared/world.js'
+import { cagesIn } from '../../../shared/logic.js'
+import { atCageReturn, clampToWalkable, gauntletLimitZ, MAX_MOVE_SPEED, SPAWN } from '../../../shared/world.js'
 import { isGuestId, noteScores, verifyPlayerToken } from '../boxity.js'
 import { adoptGuestProgress, getSphinxStock, loadProfile, saveProfile, takeSphinx } from '../db.js'
 import { getLeaderboards } from '../leaderboards.js'
 import { activePlayers, broadcastAll, liveRooms } from '../registry.js'
-import { GameState, NOT_PUSHING, PlayerState } from './schema.js'
+import { GameState, PlayerState } from './schema.js'
 
 const MAX_CLIENTS = 8
 const RECONNECT_SECONDS = 20
@@ -17,13 +18,15 @@ const PATCH_HZ = 15
 const SIM_HZ = 10
 /** Allowance on top of max speed for a position update to be accepted. */
 const MOVE_SLACK = 2.5
+/** How far past a cage they haven't broken a report may say they are (lag, the bars' thickness). */
+const CAGE_SLACK = 0.8
 /** Close code used when the same player joins somewhere else (4000-4010 are Colyseus's own). */
 const DUPLICATE_LOGIN = 4100
 /** Names this server process in save ownership; Legion sets POD_NAME per pod. */
 const POD = process.env.POD_NAME || `local-${process.pid}`
 
 /** What other players may be told someone is doing. */
-const ANIMS = ['idle', 'walk', 'train', 'jump', 'push', 'dance']
+const ANIMS = ['idle', 'walk', 'train', 'jump', 'pull', 'dance']
 
 /** Unambiguous characters for lobby codes people read out to each other. */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -120,7 +123,7 @@ export class GameRoom extends Room {
     const player = new PlayerState()
     const spawnX = SPAWN.x + (Math.random() - 0.5) * 6
     const spawnZ = SPAWN.z + (Math.random() - 0.5) * 4
-    Object.assign(player, { name, uid: verified && !isGuestId(playerId) ? playerId : '', x: spawnX, y: 0, z: spawnZ, rotY: Math.PI, anim: 'idle', pushMeter: NOT_PUSHING })
+    Object.assign(player, { name, uid: verified && !isGuestId(playerId) ? playerId : '', x: spawnX, y: 0, z: spawnZ, rotY: Math.PI, anim: 'idle' })
     this.state.players.set(client.sessionId, player)
 
     const session = new PlayerSession(profile, {
@@ -133,11 +136,10 @@ export class GameRoom extends Room {
         if (ok) broadcastAll('stock', { sphinx: getSphinxStock() })
         return ok
       },
-      // Everyone else sees you up the track from the synced state.
-      onPush: (push) => {
-        player.pushMeter = push ? push.meter : NOT_PUSHING
-        player.pushX = push ? push.x : 0
-        player.pushPhase = push ? push.phase : ''
+      // Cashed in on a WIN pad: on your way back to the lobby (see handlePosition).
+      onReturn: () => {
+        const member = this.members.get(client.sessionId)
+        if (member) member.returning = true
       },
     })
 
@@ -264,7 +266,7 @@ export class GameRoom extends Room {
     if (player.wins !== p.wins) player.wins = p.wins
     if (player.rebirths !== p.rebirths) player.rebirths = p.rebirths
     if (player.level !== p.level) player.level = p.level
-    if (player.dumbbellId !== p.equippedDumbbell) player.dumbbellId = p.equippedDumbbell
+    if (player.bodyId !== p.equippedBody) player.bodyId = p.equippedBody
     if (player.aura !== (p.equippedAura || '')) player.aura = p.equippedAura || ''
     const pets = p.equippedPets
       .map((uid) => p.pets.find((pet) => pet.uid === uid)?.id)
@@ -277,8 +279,9 @@ export class GameRoom extends Room {
 
   /**
    * Position reports, ~10 Hz from each client. Accepted if the move is physically
-   * possible since the last accepted one (or is the trip back after a push);
-   * otherwise the client is snapped back.
+   * possible since the last accepted one and doesn't go through a cage they haven't
+   * broken; otherwise the client is snapped back. Just after a WIN pad, on the way home,
+   * anything goes until they land at CAGE_RETURN (the client fades there in one jump).
    */
   handlePosition(client, msg) {
     const member = this.members.get(client.sessionId)
@@ -290,9 +293,14 @@ export class GameRoom extends Room {
     if (![x, y, z].every(Number.isFinite)) return
 
     const now = Date.now()
+    const session = member.session
+    const returning = member.returning && now < session.returnUntil
+    if (member.returning && (!returning || atCageReturn(x, z))) member.returning = false
     const dt = Math.max(0.05, (now - member.lastPosAt) / 1000)
     const dist = Math.hypot(x - member.lastPos.x, z - member.lastPos.z)
-    if (dist > MAX_MOVE_SPEED * dt + MOVE_SLACK && !isPushReturn(member.lastPos, { x, z })) {
+    const run = session.syncRun()
+    const throughCage = z < gauntletLimitZ(run.broken, cagesIn(run.world).length) - CAGE_SLACK
+    if (!returning && (dist > MAX_MOVE_SPEED * dt + MOVE_SLACK || throughCage)) {
       client.send('correct', { x: member.lastPos.x, y: player.y, z: member.lastPos.z })
       return
     }
@@ -332,14 +340,15 @@ export class GameRoom extends Room {
   }
 
   /**
-   * Boxity's "Reset Character": back at the spawn point at once (out of any climb), the
-   * jump allowed since it's the server that puts you there.
+   * Boxity's "Reset Character": back at the spawn point at once, every cage whole again,
+   * the jump allowed since it's the server that puts you there.
    */
   handleRespawn(client) {
     const member = this.members.get(client.sessionId)
     const player = this.state.players.get(client.sessionId)
     if (!member || !player) return
-    if (member.session.push) member.session.handle('endPush', { reason: 'left' }, Date.now())
+    member.session.resetRun()
+    member.returning = false
     Object.assign(player, { x: SPAWN.x, y: 0, z: SPAWN.z })
     member.lastPos = { x: SPAWN.x, z: SPAWN.z }
     member.lastPosAt = Date.now()

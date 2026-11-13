@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Color, Euler, Matrix4, Quaternion, Vector3 } from 'three'
 
 import { useQuality } from '../../store/quality'
-import { createBoxInstances, disposeBlocks } from '../blocks'
+import { createBoxInstances, disposeBlocks, toColor } from '../blocks'
 import { sharedMaterials, STYLE } from '../materials'
 import { drainBursts } from './fxQueue'
 
@@ -69,6 +69,7 @@ export function Particles() {
     drainBursts((burst) => {
       if (!enabled) return
       const palette = PALETTES[burst.palette] || PALETTES.confetti
+      const colors = burst.colors
       for (let i = 0; i < burst.count; i += 1) {
         const index = next.current
         next.current = (next.current + 1) % POOL
@@ -80,7 +81,7 @@ export function Particles() {
         p.vel.set(Math.cos(a) * speed * 0.6, burst.speed * (0.8 + Math.random() * 0.8), Math.sin(a) * speed * 0.6)
         p.rot.set(Math.random() * 6, Math.random() * 6, Math.random() * 6)
         p.spin.set((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14)
-        instanced.setColorAt(index, palette[Math.floor(Math.random() * palette.length)])
+        instanced.setColorAt(index, colors ? toColor(colors[i % colors.length]) : palette[Math.floor(Math.random() * palette.length)])
       }
       if (instanced.instanceColor) instanced.instanceColor.needsUpdate = true
     })

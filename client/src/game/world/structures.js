@@ -84,9 +84,9 @@ function crystals(blocks, x, z, color) {
 }
 
 /**
- * The Train Zones: a raised pad in each gym's colour on a dark rim, and along its back
- * (west) edge a row of equipment - bench presses either side of a dumbbell rack - with
- * glowing crystals behind the fancier ones.
+ * The Train Zones: a small raised pad in each gym's colour on a dark rim with a light
+ * at each corner, and along its back (west) edge a bench press and a dumbbell rack,
+ * with glowing crystals behind the fancier ones.
  */
 export function buildTrainZones(blocks) {
   for (let i = 0; i < ZONE_COUNT; i += 1) {
@@ -97,24 +97,23 @@ export function buildTrainZones(blocks) {
     blocks.addOn(ZONE_X, ZONE_HEIGHT - 0.06, cz, ZONE_HALF.x * 2 - 0.3, 0.1, ZONE_HALF.z * 2 - 0.3, theme.pad, theme.style)
     // A gym mat let into the plain pads, a shade darker, with tile seams.
     if (theme.style === STYLE.STUDS || theme.style === STYLE.PLATE) {
-      blocks.addOn(ZONE_X + 0.8, ZONE_HEIGHT, cz, ZONE_HALF.x * 2 - 3.2, 0.06, ZONE_HALF.z * 2 - 1.2, mat(theme.pad), STYLE.TILES)
+      blocks.addOn(ZONE_X + 0.7, ZONE_HEIGHT, cz, ZONE_HALF.x * 2 - 2.6, 0.06, ZONE_HALF.z * 2 - 1, mat(theme.pad), STYLE.TILES)
     }
     // A lamp post at each corner, lit in the gym's colour.
     for (const sx of [-1, 1]) {
       for (const sz of [-1, 1]) {
         const lx = ZONE_X + sx * (ZONE_HALF.x - 0.3)
         const lz = cz + sz * (ZONE_HALF.z - 0.3)
-        blocks.addOn(lx, ZONE_HEIGHT, lz, 0.3, 1.9, 0.3, theme.rim === '#262b35' ? '#3a4150' : theme.rim, STYLE.SMOOTH)
-        blocks.add(lx, ZONE_HEIGHT + 2.12, lz, 0.5, 0.5, 0.5, theme.text, STYLE.GLOW)
-        blocks.add(lx, ZONE_HEIGHT + 2.44, lz, 0.62, 0.12, 0.62, '#2b2f38', STYLE.SMOOTH)
+        blocks.addOn(lx, ZONE_HEIGHT, lz, 0.26, 1.5, 0.26, theme.rim === '#262b35' ? '#3a4150' : theme.rim, STYLE.SMOOTH)
+        blocks.add(lx, ZONE_HEIGHT + 1.7, lz, 0.42, 0.42, 0.42, theme.text, STYLE.GLOW)
+        blocks.add(lx, ZONE_HEIGHT + 1.97, lz, 0.54, 0.1, 0.54, '#2b2f38', STYLE.SMOOTH)
       }
     }
     const plate = i === 0 ? PLATE : theme.rim
-    benchPress(blocks, ZONE_RACK_X, ZONE_HEIGHT, cz - 2.2, plate)
-    dumbbellRack(blocks, ZONE_RACK_X - 0.1, ZONE_HEIGHT, cz + 0.1, plate)
-    benchPress(blocks, ZONE_RACK_X, ZONE_HEIGHT, cz + 2.4, plate)
+    benchPress(blocks, ZONE_RACK_X, ZONE_HEIGHT, cz - 1.25, plate)
+    dumbbellRack(blocks, ZONE_RACK_X - 0.1, ZONE_HEIGHT, cz + 1.35, plate)
     trainingBench(blocks, BENCH_X, ZONE_HEIGHT, cz, theme.pad)
-    if (theme.crystals) crystals(blocks, deck.minX - 2.4, cz, theme.crystals)
+    if (theme.crystals) crystals(blocks, deck.minX - 1.9, cz, theme.crystals)
   }
 }
 
@@ -145,9 +144,9 @@ const RED = '#ff4a3b'
 const GOLD = '#ffd21f'
 
 /**
- * The dumbbell shop: two grey stone display stages (the stands on them are
- * DumbbellShop's) and the big sign behind, a slate panel in a stone frame with red
- * light strips. `detail` (off on LOW) adds the sign's bulbs.
+ * The arms shop: two grey stone display stages (the stands on them are BodyShop's) and
+ * the big sign behind, a slate panel in a stone frame with red light strips. `detail`
+ * (off on LOW) adds the sign's bulbs.
  *
  * No two faces here share a plane: every layer stands a clear step proud of what it
  * sits on.
@@ -254,13 +253,16 @@ const SKIN = '#f3e7dc'
 const SHIRT = '#1b1f2b'
 const BELT = '#2f7fe6'
 const HAIR = '#a8541f'
+const SHOE = '#f4f7fb'
+const EYES = '#1b1f2b'
 
 /** The statue's size against the avatar it's modelled on (6.4 units tall). */
 const STATUE_SCALE = 1.1
-const SHOE = '#f4f7fb'
+/** How finely a statue's divided: plenty for something this still, a few metres off (about 1k triangles). */
+const STATUE_DETAIL = { torso: { along: 8, around: [4, 3] }, arm: { along: 10, around: [3, 2] }, leg: { along: 8, around: [2, 2] } }
 
 /**
- * The big bodybuilder statue by the boulder, flexing both arms at the plaza: the
+ * The big bodybuilder statue by the way into the cages, flexing both arms at the plaza: the
  * players' own rounded body at its biggest (muscleBody), in a black shirt with a blue
  * tie and belt, on a stone plinth. Faces south. Its body goes in `props` (merged, one
  * draw call); the plinth and the blocky head in `blocks`.
@@ -273,7 +275,7 @@ export function buildStatue(blocks, props) {
   const k = STATUE_SCALE
   const at = (u, v, w) => [x + u * k, base + v * k, z + w * k]
 
-  const body = flexingBodybuilder()
+  const body = flexingBodybuilder(1, STATUE_DETAIL)
   props.add(body.torso, { position: at(0, 0, 0), scale: k, color: SHIRT })
   props.add(body.arm_L, { position: at(0, 0, 0), scale: k, color: SKIN })
   props.add(body.arm_R, { position: at(0, 0, 0), scale: k, color: SKIN })
@@ -308,6 +310,6 @@ export function buildStatue(blocks, props) {
   blocks.addOn(...at(0, 4.85, 0), 1.6 * k, 1.6 * k, 1.6 * k, SKIN, STYLE.SMOOTH)
   blocks.addOn(...at(0, 6.3, -0.05), 1.72 * k, 0.45 * k, 1.72 * k, HAIR, STYLE.SMOOTH)
   blocks.addOn(...at(0, 5.3, -0.76), 1.72 * k, 1.1 * k, 0.3 * k, HAIR, STYLE.SMOOTH)
-  for (const side of [-1, 1]) blocks.add(...at(side * 0.32, 5.75, 0.81), 0.16 * k, 0.26 * k, 0.05, '#1b1f2b', STYLE.SMOOTH)
-  blocks.add(...at(0, 5.3, 0.81), 0.6 * k, 0.1 * k, 0.05, '#1b1f2b', STYLE.SMOOTH)
+  for (const side of [-1, 1]) blocks.add(...at(side * 0.32, 5.75, 0.81), 0.16 * k, 0.26 * k, 0.05, EYES, STYLE.SMOOTH)
+  blocks.add(...at(0, 5.3, 0.81), 0.6 * k, 0.1 * k, 0.05, EYES, STYLE.SMOOTH)
 }

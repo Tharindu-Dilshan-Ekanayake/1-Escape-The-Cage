@@ -1,7 +1,6 @@
 import { Vector3 } from 'three'
 
 import { remotePlayers } from '../net/remotePlayers'
-import { push } from './push/pushControl'
 import { runtime } from './runtime'
 
 /**
@@ -57,7 +56,7 @@ const _v = new Vector3()
 /** Where `key`'s head is now, into `out`; false if they're not here. */
 function headOf(key, out) {
   if (key === 'local') {
-    out.copy(push.active ? push.position : runtime.player.position)
+    out.copy(runtime.player.position)
     out.y += HEAD
     return true
   }

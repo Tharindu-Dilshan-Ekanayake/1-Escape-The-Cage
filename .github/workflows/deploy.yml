@@ -1,10 +1,10 @@
-# Ships +1 Muscle to Push Boulder to Boxity: the dev branch to the dev (playtest) channel,
+# Ships the game (1-escape-the-cage) to Boxity: the dev branch to the dev (playtest) channel,
 # main to production - on both Boxity platforms, prod always and stage too once the repo
 # has a stage token. The two deploys are separate jobs: a stage failure never blocks or
 # undoes prod. "Run workflow" deploys any branch to the one platform you pick.
 #
 #   server   -> Docker image in this repo's GitHub Container Registry, rolled out by Legion
-#   frontend -> the built client, served at https://1-muscle-to-push-boulder.play.bloxity.io
+#   frontend -> the built client, served at https://1-escape-the-cage.play.bloxity.io
 #               (prod; .dev.play... for dev, and the same under stage.bloxity.io on stage)
 #
 # One build for both platforms: no environment, API URL or domain goes into the client
@@ -14,7 +14,7 @@
 #   LEGION_DEPLOY_TOKEN        from hosting.bloxity.io (production)
 #   LEGION_DEPLOY_TOKEN_STAGE  from hosting.stage.bloxity.io (optional: ships to stage too)
 # After the first run, make the ghcr.io package public so Legion can pull it (repo ->
-# Packages -> 1-muscle-to-push-boulder-server -> Package settings -> Change visibility).
+# Packages -> 1-escape-the-cage-server -> Package settings -> Change visibility).
 
 name: Deploy to Boxity
 
@@ -30,10 +30,11 @@ on:
         default: staging
 
 env:
-  GAME_ID: 1-muscle-to-push-boulder
-  # Players per room (the Colyseus room's maxClients). Boxity decides how many rooms a
-  # pod holds from the CPU each player takes.
-  ROOM_SIZE: 8
+  GAME_ID: 1-escape-the-cage
+  # Legion's seatCap: the players one pod holds - the Colyseus room's maxClients
+  # (MAX_CLIENTS in server/src/rooms/GameRoom.js; keep the two the same). When a pod
+  # fills to it, the matchmaker starts another; when everyone leaves, it scales to zero.
+  SEAT_CAP: 8
 
 concurrency:
   group: deploy-${{ github.ref_name }}
@@ -102,7 +103,7 @@ jobs:
           curl -sS --fail-with-body -X POST "$LEGION_URL/v1/apps/$GAME_ID/deploy" \
             -H "Authorization: Bearer $DEPLOY_TOKEN" \
             -H 'Content-Type: application/json' \
-            -d "{\"channel\":\"${{ steps.meta.outputs.channel }}\",\"image\":\"${{ steps.meta.outputs.image }}\",\"version\":\"$GITHUB_SHA\",\"roomSize\":$ROOM_SIZE}"
+            -d "{\"channel\":\"${{ steps.meta.outputs.channel }}\",\"image\":\"${{ steps.meta.outputs.image }}\",\"version\":\"$GITHUB_SHA\",\"seatCap\":$SEAT_CAP}"
 
       - uses: actions/setup-node@v4
         with:

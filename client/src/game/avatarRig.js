@@ -15,7 +15,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 
 import { BACK_BONE, HAT_BONE, NECK_OFFSET_BONE, PART_SLOTS } from '../bloxity/avatarAssets'
 import { restInverses } from './avatarItems'
-import { BODY_OFFSETS, buildMusclePart, MUSCLE_SLOTS } from './muscleBody'
+import { BODY_OFFSETS, buildMusclePart, MUSCLE_SLOTS, partDetail, shoulderOffset } from './muscleBody'
 import { computePose, POSED_BONES } from './playerPose'
 
 /**
@@ -308,9 +308,10 @@ const boneIndexer = (rig) => (name) => rig.skeleton.bones.findIndex((b) => b.nam
 /**
  * Builds the rig's rounded body parts (see muscleBody) ahead of mergeBody, one part a
  * moment when the page is idle, so the first avatar's body never lands as one long
- * stall (the parts are shared, so later avatars find them built). Returns a cancel.
+ * stall (the parts are shared, so later avatars find them built). `detail` as for
+ * mergeBody. Returns a cancel.
  */
-export function prepareMuscleParts(rig) {
+export function prepareMuscleParts(rig, detail = null) {
   const slots = rig.skeleton ? MUSCLE_SLOTS.filter((slot) => rig.originalGeometries[slot]) : []
   const later = (fn) => (window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 0))
   let handle = null
@@ -318,7 +319,7 @@ export function prepareMuscleParts(rig) {
   const next = () => {
     const slot = slots.shift()
     if (!slot || done) return
-    buildMusclePart(slot, rig.originalGeometries[slot], boneIndexer(rig))
+    buildMusclePart(slot, rig.originalGeometries[slot], boneIndexer(rig), partDetail(slot, detail))
     handle = later(next)
   }
   handle = later(next)
@@ -331,20 +332,23 @@ export function prepareMuscleParts(rig) {
 
 /**
  * A part's piece of the merged body: the game's own rounded body part (muscleBody) for
- * the torso, arms and legs - from the part's original box - and the part's own geometry
- * otherwise (the head), with nothing to morph.
+ * the torso, arms and legs - from the part's original box, its texture mapping kept, so
+ * your own clothes land where they always did - and the part's own geometry otherwise
+ * (the head), with nothing to morph and `aMuscle` all 0 (the body worn never covers it -
+ * see bodies.js).
  */
-function bodyPiece(rig, mesh) {
+function bodyPiece(rig, mesh, detail) {
   const slot = MUSCLE_SLOTS.find((s) => rig.partMeshes[s] === mesh)
   const source = slot ? rig.originalGeometries[slot] : null
   if (source) {
-    return buildMusclePart(slot, source, boneIndexer(rig)).clone()
+    return buildMusclePart(slot, source, boneIndexer(rig), partDetail(slot, detail)).clone()
   }
   const piece = plainGeometry(mesh.geometry)
   const count = piece.getAttribute('position').count
   piece.morphAttributes.position = [new BufferAttribute(new Float32Array(count * 3), 3)]
   piece.morphAttributes.normal = [new BufferAttribute(new Float32Array(count * 3), 3)]
   piece.morphTargetsRelative = true
+  piece.setAttribute('aMuscle', new BufferAttribute(new Float32Array(count * 4), 4))
   return piece
 }
 
@@ -352,17 +356,14 @@ function bodyPiece(rig, mesh) {
  * Merges the six body parts into one skinned mesh on the same skeleton, so a whole
  * character is one draw call instead of six. The parts stay (hidden) as the source for
  * the next re-assembly. Call after the parts and skin are applied; returns the body,
- * or null if there's nothing to merge.
+ * or null if there's nothing to merge. `detail` divides the rounded parts more finely
+ * than their own (muscleBody.HERO_DETAIL, for your own avatar).
  */
-export function mergeBody(rig) {
+export function mergeBody(rig, detail = null) {
   const parts = rig.skinnedMeshes
-  if (!rig.skeleton || parts.length === 0) return null
-  const pieces = parts.map((mesh) => bodyPiece(rig, mesh))
-  const geometry = mergeGeometries(pieces, false)
-  for (const piece of pieces) piece.dispose()
+  const geometry = bodyGeometry(rig, detail)
   if (!geometry) return null
-  // The pieces' morphs are offsets; mergeGeometries keeps them but not that flag.
-  geometry.morphTargetsRelative = true
+  // The avatar's own material, as the SDK dresses it: its texture, its colours, nothing added.
   const body = new SkinnedMesh(geometry, new MeshLambertMaterial({ map: parts[0].material?.map ?? null }))
   body.name = 'merged_body'
   body.castShadow = true
@@ -374,6 +375,95 @@ export function mergeBody(rig) {
   for (const mesh of parts) mesh.visible = false
   rig.body = body
   return body
+}
+
+/** The rig's parts as one skinned geometry (see mergeBody), or null. */
+function bodyGeometry(rig, detail) {
+  const parts = rig.skinnedMeshes
+  if (!rig.skeleton || parts.length === 0) return null
+  const pieces = parts.map((mesh) => bodyPiece(rig, mesh, detail))
+  const geometry = mergeGeometries(pieces, false)
+  for (const piece of pieces) piece.dispose()
+  if (!geometry) return null
+  // The pieces' morphs are offsets; mergeGeometries keeps them but not that flag.
+  geometry.morphTargetsRelative = true
+  return geometry
+}
+
+/** Standing in the double biceps (playerPose), for bakeShowcase. */
+const SHOWCASE_POSE = { time: 0, grounded: true, speed: 0, posing: 1, poseA: 0, poseB: 0, poseMix: 0, bulk: 0 }
+
+/**
+ * Your avatar as it stands in the body shop (BodyShop): its merged body divided at
+ * `detail` (coarsely - two dozen stand there), posed in the double biceps once skinny
+ * and once a full bodybuilder, and baked into one plain geometry - the skinny pose, with
+ * the bodybuilder as its one morph - in the body's own space (feet down, facing +Z), with
+ * its texture's UVs and `aMuscle`. Every body on show is then you. Needs the body merged
+ * (mergeBody); leaves the rig posed, which your avatar's next frame undoes. Null if
+ * there's nothing to bake.
+ */
+export function bakeShowcase(rig, proportions, detail) {
+  const body = rig.body
+  const geometry = body ? bodyGeometry(rig, detail) : null
+  if (!geometry) return null
+  const position = geometry.getAttribute('position')
+  const normal = geometry.getAttribute('normal')
+  const morphPosition = geometry.morphAttributes.position[0]
+  const morphNormal = geometry.morphAttributes.normal[0]
+  const skinIndex = geometry.getAttribute('skinIndex')
+  const skinWeight = geometry.getAttribute('skinWeight')
+  const count = position.count
+  const p = new Vector3()
+  const n = new Vector3()
+  const q = new Vector3()
+  const sum = new Vector3()
+  const sumN = new Vector3()
+  const bake = (built) => {
+    SHOWCASE_POSE.bulk = built
+    applyProportions(rig, proportions, built, null)
+    animateRig(rig, SHOWCASE_POSE, 0)
+    rig.root.updateMatrixWorld(true)
+    // Each bone's whole move, bind pose to now, in the body's own space.
+    const toBody = new Matrix4().copy(body.matrixWorld).invert()
+    const moves = rig.skeleton.bones.map((bone, i) =>
+      new Matrix4().multiplyMatrices(toBody, bone.matrixWorld).multiply(rig.skeleton.boneInverses[i]).multiply(body.bindMatrix),
+    )
+    const out = { position: new Float32Array(count * 3), normal: new Float32Array(count * 3) }
+    for (let v = 0; v < count; v += 1) {
+      p.fromBufferAttribute(position, v).addScaledVector(q.fromBufferAttribute(morphPosition, v), built)
+      n.fromBufferAttribute(normal, v).addScaledVector(q.fromBufferAttribute(morphNormal, v), built)
+      sum.set(0, 0, 0)
+      sumN.set(0, 0, 0)
+      for (let k = 0; k < 4; k += 1) {
+        const w = skinWeight.getComponent(v, k)
+        if (w === 0) continue
+        const move = moves[skinIndex.getComponent(v, k)]
+        sum.addScaledVector(q.copy(p).applyMatrix4(move), w)
+        sumN.addScaledVector(q.copy(n).transformDirection(move), w)
+      }
+      sum.toArray(out.position, v * 3)
+      sumN.normalize().toArray(out.normal, v * 3)
+    }
+    return out
+  }
+  const skinny = bake(0)
+  const built = bake(1)
+  const delta = (a, b) => {
+    const d = new Float32Array(a.length)
+    for (let i = 0; i < a.length; i += 1) d[i] = b[i] - a[i]
+    return new BufferAttribute(d, 3)
+  }
+  const baked = new BufferGeometry()
+  baked.setIndex(geometry.getIndex())
+  baked.setAttribute('position', new BufferAttribute(skinny.position, 3))
+  baked.setAttribute('normal', new BufferAttribute(skinny.normal, 3))
+  baked.setAttribute('uv', geometry.getAttribute('uv'))
+  baked.setAttribute('aMuscle', geometry.getAttribute('aMuscle'))
+  baked.morphAttributes.position = [delta(skinny.position, built.position)]
+  baked.morphAttributes.normal = [delta(skinny.normal, built.normal)]
+  baked.morphTargetsRelative = true
+  geometry.dispose()
+  return baked
 }
 
 /** Removes and frees a body made by mergeBody. */
@@ -399,9 +489,12 @@ export function disposeMergedBody(body) {
  *
  * `bulk` (see playerPose.bulkFor) then builds the body: skinny when you start, a
  * bodybuilder in the end - the rounded body's morph (see muscleBody), the shoulders and
- * hips moved out to match and a little height, the head left its own size.
+ * hips moved out to match and a little height, the head left its own size. (How built
+ * someone looks comes from the body they wear and their Strength: bodies.bodyBulkFor.)
+ * `shape` is the body worn's `height` and `width` (see bodies.js): it's taller or
+ * shorter, broader or thinner, all but the head.
  */
-export function applyProportions(rig, proportions, bulk = 0.5) {
+export function applyProportions(rig, proportions, bulk = 0.5, shape = null) {
   const skeleton = rig.skeleton
   if (!skeleton) return
   // Runs even with no proportions (another player's look not in yet): the reset to the
@@ -409,8 +502,9 @@ export function applyProportions(rig, proportions, bulk = 0.5) {
   proportions ??= {}
 
   const built = Math.min(1, Math.max(0, bulk))
-  const { shoulder, hip, tall } = BODY_OFFSETS
-  const height = (proportions.height ?? 1) * (tall[0] + (tall[1] - tall[0]) * built)
+  const { hip, tall } = BODY_OFFSETS
+  const width = shape?.width > 0 ? shape.width : 1
+  const height = (proportions.height ?? 1) * (tall[0] + (tall[1] - tall[0]) * built) * (shape?.height > 0 ? shape.height : 1)
   const armLength = proportions.armLength ?? 1
   const headScale = proportions.headScale ?? 1
   const neckHeight = proportions.neckHeight ?? 1
@@ -419,12 +513,12 @@ export function applyProportions(rig, proportions, bulk = 0.5) {
   const legOffsetX = proportions.legOffsetX ?? 1
 
   // How far the arms and legs move out so they stay at the sides of the built body.
-  const shoulderOut = shoulder[0] + (shoulder[1] - shoulder[0]) * built
+  const shoulderOut = shoulderOffset(built, built)
   const hipOut = hip[0] + (hip[1] - hip[0]) * built
   if (rig.body?.morphTargetInfluences) rig.body.morphTargetInfluences[0] = built
 
-  // Overall height is a scale on the character root, not on a bone.
-  rig.root.scale.set(1, height, 1)
+  // Overall height and breadth are a scale on the character root, not on a bone.
+  rig.root.scale.set(width, height, width)
 
   for (const bone of skeleton.bones) {
     const rest = rig.bones[bone.name]
@@ -449,11 +543,11 @@ export function applyProportions(rig, proportions, bulk = 0.5) {
       bone.position.y += (height - headScale) * origPos.y
       bone.position.y += rig.neckOffsetBindY * (neckHeight - 1) * 0.8
     } else if (name === HAT_BONE) {
-      // Divided by height so the head stays uniform inside the stretched root.
+      // Divided by height and width so the head stays its own shape inside the stretched root.
       bone.scale.set(
-        origScale.x * headScale,
+        origScale.x * (headScale / width),
         origScale.y * (headScale / height),
-        origScale.z * headScale,
+        origScale.z * (headScale / width),
       )
     } else if (name === BACK_BONE) {
       // Not in the SDK preview: torso width.

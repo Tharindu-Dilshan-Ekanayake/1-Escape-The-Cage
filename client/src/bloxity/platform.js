@@ -3,7 +3,7 @@ import { BOXITY_BOARDS } from '@shared/balance'
 import { setAdBreak, setVolumes } from '../audio/sfx'
 import { loadEmotes, playEmote } from '../game/emotes'
 import { showChatBubble } from '../game/speechBubbles'
-import { resetCharacter } from '../game/push/pushControl'
+import { resetCharacter } from '../game/cages/cageControl'
 import { getGame, useGame } from '../store/game'
 import { useQuality } from '../store/quality'
 import { safeCall, toUnsubscribe } from './sdk'
@@ -118,7 +118,10 @@ export function startPlatform(sdk) {
     safeCall(() => sdk.portal?.showMenu?.(true))
   })
 
-  // Screen ads: Boxity's banners around a full-screen panel while it's open.
+  // Screen ads: banners only while a popup panel (Rebirth, Bodies, Store...) is open - the
+  // game lists that one screen and no 'gameplay' screen, so nothing can ever put banners
+  // on the game while you play. The banners sit along the edges, clear of the panel.
+  safeCall(() => sdk.ads?.declareScreens?.({ panel: {} }))
   let screen = null
   useGame.subscribe((state, prev) => {
     if (state.panel === prev.panel) return

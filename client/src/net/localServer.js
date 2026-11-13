@@ -3,7 +3,7 @@ import { PlayerSession } from '@shared/session'
 
 import { runtime } from '../game/runtime'
 
-const SAVE_KEY = 'mb.save.v1'
+const SAVE_KEY = 'cs.save.v1'
 const TICK_MS = 100
 const SAVE_MS = 5000
 

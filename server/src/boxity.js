@@ -15,7 +15,7 @@ export const boxity = {
   staticUrl: (process.env.BLOXITY_STATIC_URL || 'https://static.bloxity.io').replace(/\/$/, ''),
   gameId: process.env.BLOXITY_GAME_ID || '',
   /** The game's slug on Boxity: its hosting id, unless told otherwise. */
-  gameSlug: process.env.BLOXITY_GAME_SLUG || process.env.BLOXITY_GAME_ID || '1-muscle-to-push-boulder',
+  gameSlug: process.env.BLOXITY_GAME_SLUG || process.env.BLOXITY_GAME_ID || '1-escape-the-cage',
   reportToken: process.env.BLOXITY_REPORT_TOKEN || '',
 }
 
@@ -108,7 +108,7 @@ const SCORE_EVERY_MS = 20_000
 const SCORE_BATCH = 200
 
 /**
- * Scores waiting to go to Boxity, by player: the best Muscle and rebirths seen (boards
+ * Scores waiting to go to Boxity, by player: the best Strength and rebirths seen (boards
  * that keep each player's best) and the Wins earned since the last report (a board that
  * adds them up). Kept until Boxity has them, so a failed request loses nothing.
  */
@@ -121,8 +121,8 @@ const pending = new Map()
 export function noteScores(playerId, profile, winsEarned = 0) {
   if (isGuestId(playerId)) return
   const userId = legionId(playerId)
-  const row = pending.get(userId) ?? { muscle: 0, rebirths: 0, wins: 0 }
-  row.muscle = Math.max(row.muscle, Math.floor(profile.stats?.bestMuscle ?? profile.muscle ?? 0))
+  const row = pending.get(userId) ?? { strength: 0, rebirths: 0, wins: 0 }
+  row.strength = Math.max(row.strength, Math.floor(profile.stats?.bestMuscle ?? profile.muscle ?? 0))
   row.rebirths = Math.max(row.rebirths, Math.floor(profile.rebirths ?? 0))
   row.wins += Math.max(0, Math.floor(winsEarned))
   pending.set(userId, row)

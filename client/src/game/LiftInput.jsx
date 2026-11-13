@@ -7,10 +7,13 @@ import { lift } from './lift'
 /** A press that moves less than this (px) and lets go this soon (ms) is a click, not a drag. */
 const CLICK_SLOP = 8
 const CLICK_MS = 400
+/** Keys that tap too (held down, they don't repeat: every hit is a press). E only at a cage. */
+const TAP_KEYS = new Set(['KeyE', 'KeyF', 'Enter'])
 
 /**
- * "Every click gives you Muscle": a click or tap on the 3D view (not a drag to turn the
- * camera) lifts your dumbbell. Non-visual.
+ * "Every tap gives you Strength": a click or tap on the 3D view (not a drag to turn the
+ * camera), or E / F / Enter, lifts your dumbbell - or, at a cage's bars, pulls them apart.
+ * Non-visual.
  */
 export function LiftInput() {
   const gl = useThree((s) => s.gl)
@@ -30,13 +33,22 @@ export function LiftInput() {
       if (moved < CLICK_SLOP && performance.now() - press.t < CLICK_MS) lift()
     }
     const onCancel = (e) => presses.delete(e.pointerId)
+    const onKey = (e) => {
+      if (e.repeat || !TAP_KEYS.has(e.code) || useGame.getState().panel) return
+      // E is the prompts' key (buy, claim...); it taps only at a cage, where there's none.
+      if (e.code === 'KeyE' && useGame.getState().zone.cage < 0) return
+      if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|BUTTON)$/.test(e.target.tagName)) return
+      lift()
+    }
     el.addEventListener('pointerdown', onDown)
     el.addEventListener('pointerup', onUp)
     el.addEventListener('pointercancel', onCancel)
+    window.addEventListener('keydown', onKey)
     return () => {
       el.removeEventListener('pointerdown', onDown)
       el.removeEventListener('pointerup', onUp)
       el.removeEventListener('pointercancel', onCancel)
+      window.removeEventListener('keydown', onKey)
     }
   }, [gl])
 

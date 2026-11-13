@@ -2,10 +2,12 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useLayoutEffect, useRef } from 'react'
 import { Vector3 } from 'three'
 
+import { useGame } from '../store/game'
 import { useQuality } from '../store/quality'
 import { runtime } from './runtime'
-import { LIGHTS } from './sceneStyle'
+import { LIGHTS, NIGHT_LIGHTS } from './sceneStyle'
 
+const NIGHT = { ...LIGHTS, ...NIGHT_LIGHTS }
 const SUN_DIRECTION = new Vector3(...LIGHTS.sunDirection).normalize()
 /** How far back along SUN_DIRECTION the light sits from the point it shadows. */
 const SUN_DISTANCE = 70
@@ -19,13 +21,15 @@ const SHADOW_EXTENT = 28
  * (see BlobShadows), so the shadow pass costs nothing there.
  *
  * A directional light's shadow only covers a fixed box around its target, so the sun
- * and its target follow the player, up the mountain too while pushing.
+ * and its target follow the player, down the cages too.
  */
 export function Lighting() {
   const sunRef = useRef(null)
   const scene = useThree((s) => s.scene)
   const shadows = useQuality((s) => s.settings.shadows === 'realtime')
   const mapSize = useQuality((s) => s.settings.shadowMapSize) || 1024
+  // Moonlight in the Shadow Prison.
+  const light = useGame((s) => (s.profile.world > 0 ? NIGHT : LIGHTS))
 
   useLayoutEffect(() => {
     const sun = sunRef.current
@@ -58,12 +62,12 @@ export function Lighting() {
 
   return (
     <>
-      <hemisphereLight args={[LIGHTS.hemiSky, LIGHTS.hemiGround, LIGHTS.hemiIntensity]} />
+      <hemisphereLight args={[light.hemiSky, light.hemiGround, light.hemiIntensity]} />
       <directionalLight
         ref={sunRef}
         castShadow={shadows}
-        color={LIGHTS.sunColor}
-        intensity={LIGHTS.sunIntensity}
+        color={light.sunColor}
+        intensity={light.sunIntensity}
         position={SUN_DIRECTION.clone().multiplyScalar(SUN_DISTANCE).toArray()}
         shadow-mapSize={[mapSize, mapSize]}
         shadow-radius={LIGHTS.shadowSoftness}

@@ -54,7 +54,7 @@ export function registerPopupElements(elements) {
  * @param {{ iconUrl?: string, scale?: number, gradient?: string, life?: number,
  *   follow?: Vector3, screen?: boolean, u?: number, v?: number, rot?: number }} [style]
  *   no `iconUrl` = text only; `follow` keeps the popup where it started relative to that
- *   (moving) point, e.g. someone pushing up the mountain. `screen` pins it to the screen at
+ *   (moving) point, e.g. you, cashing in on a WIN pad. `screen` pins it to the screen at
  *   `u`/`v` instead (`position` is then ignored); `rot` tilts it as it lands.
  */
 export function spawnPopup(text, position, style = {}) {

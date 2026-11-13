@@ -1,7 +1,7 @@
 import { useBloxityStore } from './bloxity/store'
 import { emoteClip, playEmote } from './game/emotes'
 import { runtime } from './game/runtime'
-import { push, resetCharacter } from './game/push/pushControl'
+import { run, resetCharacter } from './game/cages/cageControl'
 import { showChatBubble } from './game/speechBubbles'
 import { actions } from './net/actions'
 import { remotePlayers, upsertRemotePlayer } from './net/remotePlayers'
@@ -22,7 +22,7 @@ export function installDebugHooks() {
     actions,
     remotePlayers,
     upsertRemotePlayer,
-    push,
+    run,
     bloxity: useBloxityStore,
     // What Boxity's own events would do: an emote picked, a chat line, "Reset Character".
     playEmote,

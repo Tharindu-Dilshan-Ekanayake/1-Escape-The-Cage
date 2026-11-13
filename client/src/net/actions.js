@@ -17,27 +17,25 @@ export function send(type, payload) {
 }
 
 export const actions = {
-  /** One click: a lift with your dumbbell. */
+  /** One tap: a lift with your arms. */
   lift: () => send('lift'),
   enterZone: (zone) => send('enterZone', { zone }),
   leaveZone: () => send('leaveZone'),
-  /** Starts a push; only counts standing on the PUSH ZONE (walking onto it sends it). */
-  startPush: () => send('startPush'),
-  /** Where you've got to up the track (a few times a second while pushing). */
-  pushAt: (meter, x) => send('pushAt', { meter, x }),
-  endPush: (reason) => send('endPush', { reason }),
-  /** The boulder rolled into Wins orb `index`. */
-  collectOrb: (index) => send('collectOrb', { index }),
+  /** One tap at the bars of the cage you're standing at. */
+  hit: () => send('hit'),
+  /** Stepped onto room `pad`'s WIN pad, standing at (x, z). */
+  claimPad: (pad, x, z) => send('claimPad', { pad, x, z }),
   /** A Boxity emote started ('' when it stops), so the room sees it. */
   emote: (id) => send('emote', { id }),
   /** Back to the spawn point (Boxity's "Reset Character"). */
   respawn: () => send('respawn'),
   rebirth: () => send('rebirth'),
   skipRebirth: () => send('skipRebirth'),
-  buyDumbbell: (id) => send('buyDumbbell', { id }),
-  equipDumbbell: (id) => send('equipDumbbell', { id }),
+  /** Buys body `id` (the next one), or puts it on if you have it. */
+  buyBody: (id) => send('buyBody', { id }),
+  equipBody: (id) => send('equipBody', { id }),
   equipAura: (id) => send('equipAura', { id }),
-  /** Buys Muscle pack `index` (0-2) from under the level bar. */
+  /** Buys Strength pack `index` (0-2) from under the level bar. */
   buyPack: (index) => send('buyPack', { index }),
   hatch: (eggId, count = 1) => send('hatch', { eggId, count }),
   openEggItem: (itemId) => send('openEggItem', { itemId }),

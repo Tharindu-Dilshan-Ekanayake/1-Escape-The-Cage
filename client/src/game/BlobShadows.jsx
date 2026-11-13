@@ -2,11 +2,10 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import { Color, InstancedMesh, Matrix4, PlaneGeometry, Quaternion, ShaderMaterial, Vector3 } from 'three'
 
-import { groundHeightAt, TRACK_START_Z } from '@shared/world'
+import { groundHeightAt } from '@shared/world'
 
 import { useQuality } from '../store/quality'
 import { runtime } from './runtime'
-import { floorY, meterAtZ, tiltAt } from './push/path'
 
 const MAX_BLOBS = 48
 
@@ -90,16 +89,13 @@ export function BlobShadows() {
       if (i >= MAX_BLOBS) break
       if (caster.visible === false) continue
       const p = caster.position
-      // Shrinks as the caster rises, like a real contact shadow. Up the track, it lies
-      // along the floor there: tipped on a slope, level on a SAFEZONE.
-      const onTrack = p.z < TRACK_START_Z
-      const meter = onTrack ? meterAtZ(p.z) : 0
-      const floor = onTrack ? floorY(meter) : groundHeightAt(p.x, p.z)
+      // Shrinks as the caster rises, like a real contact shadow.
+      const floor = groundHeightAt(p.x, p.z)
       const lift = Math.max(0, p.y - floor)
       const size = caster.size * Math.max(0.35, 1 - lift * 0.12)
       _p.set(p.x, floor + 0.04, p.z)
       _s.set(size, size, 1)
-      _q.setFromAxisAngle(_xAxis, -Math.PI / 2 + (onTrack ? tiltAt(meter) : 0))
+      _q.setFromAxisAngle(_xAxis, -Math.PI / 2)
       mesh.setMatrixAt(i, _m.compose(_p, _q, _s))
       i += 1
     }
